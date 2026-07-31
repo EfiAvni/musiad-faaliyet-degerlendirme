@@ -12,7 +12,7 @@ export type DataTableColumn<T> = {
  * <table>/<thead>/<tbody> iskeletini ortaklaştırır, stil kararı vermez.
  */
 export function DataTable<T>({
-  columns, data, keyExtractor, rowClassName, headerRowClassName, emptyMessage,
+  columns, data, keyExtractor, rowClassName, headerRowClassName, emptyMessage, className,
 }: {
   columns: DataTableColumn<T>[]
   data: T[]
@@ -20,13 +20,15 @@ export function DataTable<T>({
   rowClassName?: string
   headerRowClassName?: string
   emptyMessage?: string
+  /** Dış overflow-x-auto sarmalayıcının className'i (yalnızca dolu tablo durumunda kullanılır - boş mesaj kendi orijinal görünümünü korur) */
+  className?: string
 }) {
   if (data.length === 0 && emptyMessage) {
     return <p className="text-sm text-gray-400 text-center py-10">{emptyMessage}</p>
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div className={className ?? 'overflow-x-auto'}>
       <table className="w-full text-sm">
         <thead>
           <tr className={headerRowClassName ?? 'border-b border-gray-50'}>

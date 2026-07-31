@@ -24,6 +24,14 @@ class Donem extends Model
 
     public function getPeriyotTipiAttribute(): string
     {
+        // Bazı sorgular Donem'i kısıtlı kolonlarla eager-load eder (ör.
+        // Faaliyet::with('donem:id,name,status')) - bu durumda start_date/
+        // end_date seçilmemiş olur ve null gelir. $appends serialize sırasında
+        // bu accessor'ı koşulsuz çağırdığı için null-guard olmadan çöker.
+        if (!$this->start_date || !$this->end_date) {
+            return 'custom';
+        }
+
         // Calendar-month count (not diffInMonths(), which measures fractional
         // day-based distance and never lands on a clean integer for whole-month
         // ranges - e.g. July 1 to July 31 same year/month must count as 1 ay).
