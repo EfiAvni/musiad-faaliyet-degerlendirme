@@ -1,12 +1,20 @@
 import { Building2, Users, Calendar, Activity, Plus, ChevronRight, UserCog, Shield, Settings } from 'lucide-react'
+import { useState, useEffect } from 'react'
 import type { Page } from '@/types/navigation'
-import { birimler, subeler, donemler, mockUsers } from '@/utils/constants'
+import { birimler, subeler, donemler } from '@/utils/constants'
 import { Card } from '@/components/common/Card'
 import { Btn } from '@/components/common/Btn'
 import { KpiCard } from '@/components/common/KpiCard'
 import { StatusBadge } from '@/components/common/StatusBadge'
+import { kullanicilarApi } from '@/services/kullaniciService'
 
 export function SuperAdminDashboard({ onNavigate }: { onNavigate: (p: Page) => void }) {
+  const [usersCount, setUsersCount] = useState<number | string>('...')
+
+  useEffect(() => {
+    kullanicilarApi.list().then(data => setUsersCount(data.length)).catch(() => setUsersCount('?'))
+  }, [])
+
   return (
     <div className="animate-fade-in">
       <div className="mb-6">
@@ -19,7 +27,7 @@ export function SuperAdminDashboard({ onNavigate }: { onNavigate: (p: Page) => v
       <div className="grid grid-cols-4 gap-4 mb-6">
         <KpiCard label="Toplam Birim"      value={`${birimler.length}`}                                     change="0" changeType="neutral" icon={Building2}  color="#7c3aed" />
         <KpiCard label="Toplam Şube"       value={`${subeler.length}`}                                      change="0" changeType="neutral" icon={Activity}   color="#B99C1A" />
-        <KpiCard label="Kayıtlı Kullanıcı" value={`${mockUsers.length}`}                                    change="0" changeType="neutral" icon={Users}      color="#2563eb" />
+        <KpiCard label="Kayıtlı Kullanıcı" value={`${usersCount}`}                                          change="0" changeType="neutral" icon={Users}      color="#2563eb" />
         <KpiCard label="Aktif Dönem"       value={`${donemler.filter(d => d.status === 'active').length}`}  change="0" changeType="neutral" icon={Calendar}   color="#f59e0b" />
       </div>
 
