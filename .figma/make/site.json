@@ -1,0 +1,10 @@
+{
+  "description": "Streamline branch management with an elegant platform for headquarters and regional managers, enhancing collaboration and data-driven decision-making.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

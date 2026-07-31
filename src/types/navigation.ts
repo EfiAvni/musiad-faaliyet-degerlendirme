@@ -1,0 +1,12 @@
+export type Page =
+  | 'login'
+  | 'dashboard'
+  | 'birimler'
+  | 'kullanicilar'
+  | 'roller'
+  | 'ayarlar'
+  | 'subeler'
+  | 'faaliyetler'
+  | 'donemler'
+  | 'faaliyetlerim'
+  | 'raporlar'
