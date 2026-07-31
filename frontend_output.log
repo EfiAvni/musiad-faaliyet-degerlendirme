@@ -1,0 +1,11 @@
+
+> figma-make-app@1.0.0 dev
+> vite --host 0.0.0.0
+
+
+  VITE v8.1.5  ready in 390 ms
+
+  ➜  Local:   http://localhost:8443/
+  ➜  Network: http://192.168.0.2:8443/
+7:12:35 AM [vite] (client) [optimizer] scanning dependencies...
+7:12:37 AM [vite] (client) [optimizer] bundling dependencies...
