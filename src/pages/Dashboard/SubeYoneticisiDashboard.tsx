@@ -41,11 +41,30 @@ export function SubeYoneticisiDashboard({ onNavigate, user }: { onNavigate: (p: 
   const kapsananSayisi = faaliyetler.filter(f => kayitliFaaliyetIds.has(f.id)).length
   const toplam = faaliyetler.length
   const pct = toplam > 0 ? Math.round((kapsananSayisi / toplam) * 100) : 0
+
+  // Şube her birime ayrı kayıt girdiği için tek bir birleşik oran yanıltıcı
+  // olur; birim başına kırılım da gösteriyoruz.
+  const birimKirilimi = activeDonemler.map(d => {
+    const donemFaaliyetleri = faaliyetler.filter(f => f.donem_id === d.id)
+    const kapsanan = donemFaaliyetleri.filter(f => kayitliFaaliyetIds.has(f.id)).length
+    return {
+      donemId: d.id,
+      birimAdi: d.birim?.name ?? 'Birim',
+      donemAdi: d.name,
+      toplam: donemFaaliyetleri.length,
+      kapsanan,
+      pct: donemFaaliyetleri.length > 0 ? Math.round((kapsanan / donemFaaliyetleri.length) * 100) : 0,
+    }
+  })
+  const birimSayisi = new Set(activeDonemler.map(d => d.birim_id)).size
+  const cokBirimliMi = birimSayisi > 1
+  const birimAdiByDonem = new Map(activeDonemler.map(d => [d.id, d.birim?.name ?? 'Birim']))
+
   const donemSubtitle = activeDonemler.length === 0
     ? 'Aktif dönem yok'
-    : activeDonemler.length === 1
-      ? `Aktif dönem: ${activeDonemler[0].name}`
-      : `Aktif dönemler: ${activeDonemler.map(d => d.name).join(', ')}`
+    : cokBirimliMi
+      ? `${birimSayisi} birimde ${activeDonemler.length} aktif dönem`
+      : `Aktif dönem: ${activeDonemler[0].name}`
 
   return (
     <div className="animate-fade-in">
@@ -64,10 +83,37 @@ export function SubeYoneticisiDashboard({ onNavigate, user }: { onNavigate: (p: 
         <KpiCard label="Kapsanma Oranı"   value={`%${pct}`}            change={pct >= 75 ? 'İyi' : 'Devam ediyor'} changeType={pct >= 75 ? 'up' : 'neutral'} icon={Target} color="#2563eb" />
       </div>
 
+      {cokBirimliMi && (
+        <Card className="p-6 mb-4">
+          <h3 className="font-semibold text-gray-900 text-sm mb-1" style={{ fontFamily: 'Instrument Sans, sans-serif' }}>Birim Bazında İlerleme</h3>
+          <p className="text-xs text-gray-400 mb-4">Şubeniz her birime ayrı kayıt girer</p>
+          <div className="space-y-4">
+            {birimKirilimi.map(b => (
+              <div key={b.donemId}>
+                <div className="flex items-center justify-between mb-1.5 gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{b.birimAdi}</p>
+                    <p className="text-xs text-gray-400 truncate">{b.donemAdi}</p>
+                  </div>
+                  <span className="text-sm font-semibold flex-shrink-0 tabular-nums" style={{ color: '#B99C1A' }}>
+                    {b.kapsanan}/{b.toplam} · %{b.pct}
+                  </span>
+                </div>
+                <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all duration-700" style={{ width: `${b.pct}%`, background: '#B99C1A' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       <Card className="p-6">
         <div className="mb-4">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="font-semibold text-gray-900 text-sm" style={{ fontFamily: 'Instrument Sans, sans-serif' }}>Genel İlerleme</h3>
+            <h3 className="font-semibold text-gray-900 text-sm" style={{ fontFamily: 'Instrument Sans, sans-serif' }}>
+              {cokBirimliMi ? 'Toplam İlerleme' : 'Genel İlerleme'}
+            </h3>
             <span className="text-sm font-semibold" style={{ color: '#B99C1A' }}>{pct}%</span>
           </div>
           <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
@@ -94,7 +140,9 @@ export function SubeYoneticisiDashboard({ onNavigate, user }: { onNavigate: (p: 
                 }
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm font-medium truncate ${kayitli ? 'text-gray-800' : 'text-gray-500'}`}>{f.title}</p>
-                  {f.detay && <p className="text-xs text-gray-400 truncate">{f.detay}</p>}
+                  {cokBirimliMi
+                    ? <p className="text-xs text-gray-400 truncate">{birimAdiByDonem.get(f.donem_id) ?? '—'}</p>
+                    : f.detay && <p className="text-xs text-gray-400 truncate">{f.detay}</p>}
                 </div>
                 {f.tarih_gerekli && <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium flex-shrink-0">Tarihli</span>}
               </div>
