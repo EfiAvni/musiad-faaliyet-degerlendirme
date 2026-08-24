@@ -14,193 +14,291 @@ use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 /**
- * Rol kontrolü hangi uç noktanın çağrılabileceğini belirler; bu testler hangi
- * KAYITLARIN görülebileceğini doğrular. İkisi ayrı olduğu için birim yöneticisi
- * eskiden tüm birimlerin şubelerini görebiliyordu.
+ * Veri modeli: şubeler tüm birimler için ortaktır (MÜSİAD Ankara hem
+ * Teşkilatlanma'nın hem GENÇ'in şubesidir), ayrışma dönem seviyesinde olur.
+ *
+ *   Birim yöneticisi : tüm şubeler, yalnızca kendi biriminin dönemleri
+ *   Şube yöneticisi  : tüm birimlerin dönemleri, yalnızca kendi şubesinin kayıtları
  */
 class BirimKapsamiTest extends TestCase
 {
     use RefreshDatabase;
 
-    private Birim $birimA;
-    private Birim $birimB;
-    private Sube $subeA;
-    private Sube $subeB;
+    private Birim $teskilat;
+    private Birim $genc;
+    private Sube $ankara;
+    private Sube $izmir;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->birimA = Birim::create(['name' => 'Teşkilatlanma', 'status' => 'active']);
-        $this->birimB = Birim::create(['name' => 'GENÇ MÜSİAD', 'status' => 'active']);
+        $this->teskilat = Birim::create(['name' => 'Teşkilatlanma', 'status' => 'active']);
+        $this->genc = Birim::create(['name' => 'GENÇ MÜSİAD', 'status' => 'active']);
 
-        $this->subeA = Sube::create(['name' => 'Ankara Şubesi', 'birim_id' => $this->birimA->id, 'uye_sayisi' => 10, 'status' => 'active']);
-        $this->subeB = Sube::create(['name' => 'İzmir Şubesi', 'birim_id' => $this->birimB->id, 'uye_sayisi' => 20, 'status' => 'active']);
+        $this->ankara = Sube::create(['name' => 'MÜSİAD Ankara', 'uye_sayisi' => 10, 'status' => 'active']);
+        $this->izmir = Sube::create(['name' => 'MÜSİAD İzmir', 'uye_sayisi' => 20, 'status' => 'active']);
     }
 
-    private function yoneticiA(): User
+    private function teskilatYoneticisi(): User
     {
-        return User::factory()->create(['role' => 'birim_yoneticisi', 'birim_id' => $this->birimA->id]);
+        return User::factory()->create(['role' => 'birim_yoneticisi', 'birim_id' => $this->teskilat->id]);
     }
 
-    private function kayitOlustur(Sube $sube): FaaliyetKayit
+    private function ankaraYoneticisi(): User
     {
-        $donem = Donem::create([
-            'name' => 'Dönem ' . $sube->id, 'start_date' => now()->startOfMonth(),
-            'end_date' => now()->endOfMonth(), 'status' => 'active', 'tum_subeler' => true,
+        return User::factory()->create(['role' => 'sube_yoneticisi', 'sube_id' => $this->ankara->id]);
+    }
+
+    private function donem(Birim $birim, string $ad, string $durum = 'active'): Donem
+    {
+        return Donem::create([
+            'name'        => $ad,
+            'birim_id'    => $birim->id,
+            'start_date'  => now()->startOfMonth(),
+            'end_date'    => now()->endOfMonth(),
+            'status'      => $durum,
+            'tum_subeler' => true,
         ]);
-        $ay = DonemAy::create([
+    }
+
+    private function ay(Donem $donem): DonemAy
+    {
+        return DonemAy::create([
             'donem_id' => $donem->id, 'sira' => 1, 'name' => 'Ay',
             'start_date' => now()->startOfMonth(), 'end_date' => now()->endOfMonth(),
         ]);
-        $faaliyet = Faaliyet::create([
-            'title' => 'Faaliyet', 'puan' => 10, 'hedef' => 1,
+    }
+
+    private function faaliyet(Donem $donem, string $baslik = 'Üye Ziyareti'): Faaliyet
+    {
+        return Faaliyet::create([
+            'title' => $baslik, 'puan' => 10, 'hedef' => 5,
             'tarih_gerekli' => false, 'donem_id' => $donem->id, 'durum' => 'active',
         ]);
-
-        return FaaliyetKayit::create([
-            'faaliyet_id' => $faaliyet->id, 'sube_id' => $sube->id,
-            'donem_ay_id' => $ay->id, 'deger' => '1',
-        ]);
     }
 
-    public function test_birim_yoneticisi_yalnizca_kendi_biriminin_subelerini_gorur(): void
-    {
-        Sanctum::actingAs($this->yoneticiA());
+    // ─── Şubeler ortak ────────────────────────────────────────────────────────
 
-        $this->getJson('/api/subeler')
-            ->assertOk()
-            ->assertJsonCount(1)
-            ->assertJsonPath('0.name', 'Ankara Şubesi');
-    }
-
-    public function test_superadmin_tum_subeleri_gorur(): void
+    public function test_subeler_tum_birimler_icin_ortaktir(): void
     {
+        Sanctum::actingAs($this->teskilatYoneticisi());
+        $this->getJson('/api/subeler')->assertOk()->assertJsonCount(2);
+
+        Sanctum::actingAs(User::factory()->create(['role' => 'birim_yoneticisi', 'birim_id' => $this->genc->id]));
+        $this->getJson('/api/subeler')->assertOk()->assertJsonCount(2);
+
         Sanctum::actingAs(User::factory()->create(['role' => 'superadmin']));
-
         $this->getJson('/api/subeler')->assertOk()->assertJsonCount(2);
     }
 
-    public function test_birimsiz_birim_yoneticisi_hicbir_sube_gormez(): void
+    // ─── Dönem kapsamı ────────────────────────────────────────────────────────
+
+    public function test_birim_yoneticisi_yalnizca_kendi_biriminin_donemlerini_gorur(): void
     {
+        $this->donem($this->teskilat, 'Teşkilat 2026');
+        $this->donem($this->genc, 'GENÇ 2026');
+
+        Sanctum::actingAs($this->teskilatYoneticisi());
+
+        $this->getJson('/api/donemler')
+            ->assertOk()
+            ->assertJsonCount(1)
+            ->assertJsonPath('0.name', 'Teşkilat 2026');
+    }
+
+    public function test_sube_yoneticisi_tum_birimlerin_donemlerini_gorur(): void
+    {
+        $this->donem($this->teskilat, 'Teşkilat 2026');
+        $this->donem($this->genc, 'GENÇ 2026');
+
+        Sanctum::actingAs($this->ankaraYoneticisi());
+
+        $this->getJson('/api/donemler')->assertOk()->assertJsonCount(2);
+    }
+
+    public function test_birimsiz_birim_yoneticisi_hicbir_donem_gormez(): void
+    {
+        $this->donem($this->teskilat, 'Teşkilat 2026');
+
         Sanctum::actingAs(User::factory()->create(['role' => 'birim_yoneticisi', 'birim_id' => null]));
 
-        $this->getJson('/api/subeler')->assertOk()->assertJsonCount(0);
+        $this->getJson('/api/donemler')->assertOk()->assertJsonCount(0);
     }
 
-    public function test_baska_birimin_subesi_goruntulenemez(): void
+    public function test_baska_birimin_donemi_goruntulenemez_ve_yonetilemez(): void
     {
-        Sanctum::actingAs($this->yoneticiA());
+        $gencDonem = $this->donem($this->genc, 'GENÇ 2026', 'pending');
 
-        $this->getJson("/api/subeler/{$this->subeB->id}")->assertStatus(403);
-        $this->getJson("/api/subeler/{$this->subeA->id}")->assertOk();
+        Sanctum::actingAs($this->teskilatYoneticisi());
+
+        $this->getJson("/api/donemler/{$gencDonem->id}")->assertStatus(403);
+        $this->putJson("/api/donemler/{$gencDonem->id}", ['name' => 'Ele Geçirildi'])->assertStatus(403);
+        $this->postJson("/api/donemler/{$gencDonem->id}/activate")->assertStatus(403);
+        $this->deleteJson("/api/donemler/{$gencDonem->id}")->assertStatus(403);
+
+        $this->assertSame('GENÇ 2026', $gencDonem->fresh()->name);
     }
 
-    public function test_baska_birimin_subesi_duzenlenemez_ve_silinemez(): void
+    public function test_birim_yoneticisi_baska_birime_donem_acamaz(): void
     {
-        Sanctum::actingAs($this->yoneticiA());
+        Sanctum::actingAs($this->teskilatYoneticisi());
 
-        $this->putJson("/api/subeler/{$this->subeB->id}", ['name' => 'Ele Geçirildi'])->assertStatus(403);
-        $this->deleteJson("/api/subeler/{$this->subeB->id}")->assertStatus(403);
-
-        $this->assertSame('İzmir Şubesi', $this->subeB->fresh()->name);
-    }
-
-    public function test_baska_birimin_puan_ozeti_alinamaz(): void
-    {
-        Sanctum::actingAs($this->yoneticiA());
-
-        $this->getJson("/api/subeler/{$this->subeB->id}/puan-ozeti")->assertStatus(403);
-        $this->getJson("/api/subeler/{$this->subeA->id}/puan-ozeti")->assertOk();
-    }
-
-    public function test_birim_yoneticisi_baska_birime_sube_tanimlayamaz(): void
-    {
-        Sanctum::actingAs($this->yoneticiA());
-
-        $this->postJson('/api/subeler', [
-            'name' => 'Kaçak Şube', 'birim_id' => $this->birimB->id,
+        $this->postJson('/api/donemler', [
+            'name' => 'Kaçak Dönem', 'birim_id' => $this->genc->id,
+            'start_date' => '2026-01-01', 'end_date' => '2026-03-31',
         ])->assertStatus(403);
     }
 
-    public function test_birim_belirtilmeden_acilan_sube_kendi_birimine_dusar(): void
+    public function test_birim_belirtilmeden_acilan_donem_kendi_birimine_dusar(): void
     {
-        Sanctum::actingAs($this->yoneticiA());
+        Sanctum::actingAs($this->teskilatYoneticisi());
 
-        $this->postJson('/api/subeler', ['name' => 'Yeni Şube'])
-            ->assertCreated()
-            ->assertJsonPath('birim_id', $this->birimA->id);
+        $this->postJson('/api/donemler', [
+            'name' => 'Yeni Dönem', 'start_date' => '2026-01-01', 'end_date' => '2026-03-31',
+        ])->assertCreated()->assertJsonPath('birim_id', $this->teskilat->id);
     }
 
-    public function test_ice_aktarilan_subeler_kendi_birimine_baglanir(): void
+    public function test_superadmin_donem_acarken_birim_secmek_zorunda(): void
     {
-        Sanctum::actingAs($this->yoneticiA());
+        Sanctum::actingAs(User::factory()->create(['role' => 'superadmin']));
 
-        $this->postJson('/api/subeler/import', [
-            'subeler' => [['name' => 'Bursa Şubesi', 'uye_sayisi' => 5]],
-        ])->assertOk();
-
-        $this->assertSame($this->birimA->id, Sube::where('name', 'Bursa Şubesi')->value('birim_id'));
+        $this->postJson('/api/donemler', [
+            'name' => 'Birimsiz Dönem', 'start_date' => '2026-01-01', 'end_date' => '2026-03-31',
+        ])->assertStatus(422)->assertJsonValidationErrors('birim_id');
     }
 
-    public function test_faaliyet_kayitlari_yalnizca_kendi_biriminden_gelir(): void
+    public function test_her_birim_kendi_aktif_donemine_sahip_olabilir(): void
     {
-        $kayitA = $this->kayitOlustur($this->subeA);
-        $this->kayitOlustur($this->subeB);
+        $teskilatDonem = $this->donem($this->teskilat, 'Teşkilat 2026', 'pending');
+        $gencDonem = $this->donem($this->genc, 'GENÇ 2026', 'pending');
 
-        Sanctum::actingAs($this->yoneticiA());
+        Sanctum::actingAs(User::factory()->create(['role' => 'superadmin']));
 
-        $this->getJson('/api/faaliyet-kayitlari')
+        $this->postJson("/api/donemler/{$teskilatDonem->id}/activate")->assertOk();
+        $this->postJson("/api/donemler/{$gencDonem->id}/activate")->assertOk();
+    }
+
+    public function test_ayni_birimde_ikinci_donem_aktif_edilemez(): void
+    {
+        $this->donem($this->teskilat, 'Zaten Aktif', 'active');
+        $ikinci = $this->donem($this->teskilat, 'İkinci Dönem', 'pending');
+
+        Sanctum::actingAs($this->teskilatYoneticisi());
+
+        $this->postJson("/api/donemler/{$ikinci->id}/activate")
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('status');
+    }
+
+    // ─── Faaliyetler ──────────────────────────────────────────────────────────
+
+    public function test_faaliyetler_donem_birimine_gore_suzulur(): void
+    {
+        $this->faaliyet($this->donem($this->teskilat, 'Teşkilat 2026'), 'Teşkilat Faaliyeti');
+        $this->faaliyet($this->donem($this->genc, 'GENÇ 2026'), 'GENÇ Faaliyeti');
+
+        Sanctum::actingAs($this->teskilatYoneticisi());
+
+        $this->getJson('/api/faaliyetler')
             ->assertOk()
             ->assertJsonCount(1)
-            ->assertJsonPath('0.id', $kayitA->id);
+            ->assertJsonPath('0.title', 'Teşkilat Faaliyeti');
     }
 
-    public function test_rapor_yalnizca_kendi_biriminin_subelerini_icerir(): void
+    public function test_sube_yoneticisi_tum_birimlerin_faaliyetlerini_gorur(): void
     {
-        $kayit = $this->kayitOlustur($this->subeA);
-        $donemId = $kayit->faaliyet->donem_id;
+        $this->faaliyet($this->donem($this->teskilat, 'Teşkilat 2026'), 'Teşkilat Faaliyeti');
+        $this->faaliyet($this->donem($this->genc, 'GENÇ 2026'), 'GENÇ Faaliyeti');
 
-        Sanctum::actingAs($this->yoneticiA());
+        Sanctum::actingAs($this->ankaraYoneticisi());
 
-        $this->getJson("/api/raporlar/{$donemId}")
-            ->assertOk()
-            ->assertJsonPath('genel.toplam_sube', 1)
-            ->assertJsonPath('sube_bazli.0.sube_adi', 'Ankara Şubesi');
+        $this->getJson('/api/faaliyetler')->assertOk()->assertJsonCount(2);
     }
 
-    public function test_baska_birime_ozel_donemin_ayi_acilip_kapatilamaz(): void
+    public function test_baska_birimin_donemine_faaliyet_eklenemez(): void
     {
-        $donem = Donem::create([
-            'name' => 'B Birimi Dönemi', 'start_date' => now()->startOfMonth(),
-            'end_date' => now()->endOfMonth(), 'status' => 'active', 'tum_subeler' => false,
-        ]);
-        $donem->subeler()->sync([$this->subeB->id]);
+        $gencDonem = $this->donem($this->genc, 'GENÇ 2026');
 
-        $ay = DonemAy::create([
-            'donem_id' => $donem->id, 'sira' => 1, 'name' => 'Ay',
-            'start_date' => now()->startOfMonth(), 'end_date' => now()->endOfMonth(),
-        ]);
+        Sanctum::actingAs($this->teskilatYoneticisi());
 
-        Sanctum::actingAs($this->yoneticiA());
-
-        $this->patchJson("/api/donem-aylar/{$ay->id}", ['acik_override' => true])->assertStatus(403);
-        $this->assertNull($ay->fresh()->acik_override);
+        $this->postJson('/api/faaliyetler', [
+            'title' => 'Kaçak Faaliyet', 'donem_id' => $gencDonem->id,
+        ])->assertStatus(403);
     }
 
-    public function test_tum_subeleri_kapsayan_donemin_ayi_her_birim_tarafindan_yonetilebilir(): void
+    // ─── Kayıtlar ─────────────────────────────────────────────────────────────
+
+    public function test_sube_yoneticisi_tum_birimlerdeki_kendi_kayitlarini_gorur(): void
     {
-        $donem = Donem::create([
-            'name' => 'Ortak Dönem', 'start_date' => now()->startOfMonth(),
-            'end_date' => now()->endOfMonth(), 'status' => 'active', 'tum_subeler' => true,
-        ]);
-        $ay = DonemAy::create([
-            'donem_id' => $donem->id, 'sira' => 1, 'name' => 'Ay',
-            'start_date' => now()->startOfMonth(), 'end_date' => now()->endOfMonth(),
+        foreach ([$this->teskilat, $this->genc] as $birim) {
+            $donem = $this->donem($birim, "Dönem {$birim->id}");
+            FaaliyetKayit::create([
+                'faaliyet_id' => $this->faaliyet($donem)->id, 'sube_id' => $this->ankara->id,
+                'donem_ay_id' => $this->ay($donem)->id, 'deger' => '1',
+            ]);
+        }
+
+        // Başka şubenin kaydı görünmemeli.
+        $baskaDonem = $this->donem($this->teskilat, 'Diğer');
+        FaaliyetKayit::create([
+            'faaliyet_id' => $this->faaliyet($baskaDonem)->id, 'sube_id' => $this->izmir->id,
+            'donem_ay_id' => $this->ay($baskaDonem)->id, 'deger' => '1',
         ]);
 
-        Sanctum::actingAs($this->yoneticiA());
+        Sanctum::actingAs($this->ankaraYoneticisi());
 
-        $this->patchJson("/api/donem-aylar/{$ay->id}", ['acik_override' => true])->assertOk();
+        $this->getJson('/api/faaliyet-kayitlari')->assertOk()->assertJsonCount(2);
+    }
+
+    public function test_birim_yoneticisi_tum_subeleri_ama_yalnizca_kendi_birimini_gorur(): void
+    {
+        $teskilatDonem = $this->donem($this->teskilat, 'Teşkilat 2026');
+        $teskilatFaaliyet = $this->faaliyet($teskilatDonem);
+        $teskilatAy = $this->ay($teskilatDonem);
+
+        foreach ([$this->ankara, $this->izmir] as $sube) {
+            FaaliyetKayit::create([
+                'faaliyet_id' => $teskilatFaaliyet->id, 'sube_id' => $sube->id,
+                'donem_ay_id' => $teskilatAy->id, 'deger' => '1',
+            ]);
+        }
+
+        $gencDonem = $this->donem($this->genc, 'GENÇ 2026');
+        FaaliyetKayit::create([
+            'faaliyet_id' => $this->faaliyet($gencDonem)->id, 'sube_id' => $this->ankara->id,
+            'donem_ay_id' => $this->ay($gencDonem)->id, 'deger' => '1',
+        ]);
+
+        Sanctum::actingAs($this->teskilatYoneticisi());
+
+        // İki şube × Teşkilatlanma; GENÇ kaydı gelmemeli.
+        $this->getJson('/api/faaliyet-kayitlari')->assertOk()->assertJsonCount(2);
+    }
+
+    // ─── Rapor ve dönem ayı ───────────────────────────────────────────────────
+
+    public function test_baska_birimin_raporu_alinamaz(): void
+    {
+        $teskilatDonem = $this->donem($this->teskilat, 'Teşkilat 2026');
+        $gencDonem = $this->donem($this->genc, 'GENÇ 2026');
+
+        Sanctum::actingAs($this->teskilatYoneticisi());
+
+        $this->getJson("/api/raporlar/{$gencDonem->id}")->assertStatus(403);
+        $this->getJson("/api/raporlar/{$teskilatDonem->id}")->assertOk();
+    }
+
+    public function test_baska_birimin_donem_ayi_acilip_kapatilamaz(): void
+    {
+        $gencAy = $this->ay($this->donem($this->genc, 'GENÇ 2026'));
+        $teskilatAy = $this->ay($this->donem($this->teskilat, 'Teşkilat 2026'));
+
+        Sanctum::actingAs($this->teskilatYoneticisi());
+
+        $this->patchJson("/api/donem-aylar/{$gencAy->id}", ['acik_override' => true])->assertStatus(403);
+        $this->patchJson("/api/donem-aylar/{$teskilatAy->id}", ['acik_override' => true])->assertOk();
+
+        $this->assertNull($gencAy->fresh()->acik_override);
     }
 }

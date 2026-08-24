@@ -6,7 +6,7 @@ export const donemlerApi = {
 
   show: (id: number) => api.get<Donem>(`/donemler/${id}`),
 
-  create: (data: { name: string; start_date: string; end_date: string; tum_subeler?: boolean; sube_ids?: number[] }) =>
+  create: (data: { name: string; start_date: string; end_date: string; birim_id?: number; tum_subeler?: boolean; sube_ids?: number[] }) =>
     api.post<Donem>('/donemler', data),
 
   update: (id: number, data: Partial<{ name: string; start_date: string; end_date: string; tum_subeler: boolean; sube_ids: number[] }>) =>

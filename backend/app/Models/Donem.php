@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -14,7 +15,7 @@ class Donem extends Model
     protected $table = 'donemler';
 
     protected $fillable = [
-        'name', 'start_date', 'end_date', 'status', 'tum_subeler',
+        'name', 'birim_id', 'start_date', 'end_date', 'status', 'tum_subeler',
     ];
 
     protected $casts = [
@@ -48,6 +49,11 @@ class Donem extends Model
             $ayCount === 12 => 'annual',
             default => 'custom',
         };
+    }
+
+    public function birim(): BelongsTo
+    {
+        return $this->belongsTo(Birim::class);
     }
 
     public function aylar(): HasMany

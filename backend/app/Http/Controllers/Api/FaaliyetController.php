@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Donem;
 use App\Models\Faaliyet;
+use App\Support\BirimKapsami;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -14,14 +15,20 @@ class FaaliyetController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Faaliyet::with('donem:id,name,status')->orderByDesc('created_at');
+        $query = Faaliyet::with('donem:id,name,status,birim_id')->orderByDesc('created_at');
 
         if ($request->filled('donem_id')) {
             $query->where('donem_id', $request->integer('donem_id'));
         }
 
         $user = $request->user();
-        if ($user->role === 'sube_yoneticisi') {
+
+        // Birim yöneticisi yalnızca kendi biriminin dönemlerindeki faaliyetleri
+        // görür; şube yöneticisi tüm birimleri görür ama yalnızca şubesinin
+        // kapsamına giren dönemlerden.
+        BirimKapsami::donemIliskisineGore($query, $user);
+
+        if (BirimKapsami::subeIleSinirliMi($user)) {
             $query->whereHas('donem', function ($q) use ($user) {
                 $q->where('tum_subeler', true);
                 if ($user->sube_id) {
@@ -47,6 +54,11 @@ class FaaliyetController extends Controller
         ]);
 
         $donem = Donem::findOrFail($data['donem_id']);
+
+        if (!BirimKapsami::donemeErisebilirMi($request->user(), $donem)) {
+            abort(403, 'Bu dönem sizin biriminizin kapsamında değil.');
+        }
+
         if ($donem->status === 'completed') {
             throw ValidationException::withMessages([
                 'donem_id' => 'Tamamlanmış bir döneme yeni faaliyet eklenemez.',
@@ -62,13 +74,17 @@ class FaaliyetController extends Controller
         return response()->json($faaliyet->load('donem:id,name,status'), 201);
     }
 
-    public function show(Faaliyet $faaliyet): JsonResponse
+    public function show(Request $request, Faaliyet $faaliyet): JsonResponse
     {
+        $this->assertErisim($request, $faaliyet);
+
         return response()->json($faaliyet->load('donem:id,name,status'));
     }
 
     public function update(Request $request, Faaliyet $faaliyet): JsonResponse
     {
+        $this->assertErisim($request, $faaliyet);
+
         $data = $request->validate([
             'title'         => 'sometimes|string|max:255',
             'detay'         => 'nullable|string',
@@ -80,12 +96,24 @@ class FaaliyetController extends Controller
             'durum'         => ['sometimes', Rule::in(['active', 'completed', 'passive'])],
         ]);
 
+        $this->assertPuanlamaDegistirilebilir($faaliyet, $data);
+
+        if (isset($data['donem_id']) && $data['donem_id'] !== $faaliyet->donem_id) {
+            $hedefDonem = Donem::findOrFail($data['donem_id']);
+
+            if (!BirimKapsami::donemeErisebilirMi($request->user(), $hedefDonem)) {
+                abort(403, 'Faaliyeti başka bir birimin dönemine taşıyamazsınız.');
+            }
+        }
+
         $faaliyet->update($data);
         return response()->json($faaliyet->fresh()->load('donem:id,name,status'));
     }
 
-    public function destroy(Faaliyet $faaliyet): JsonResponse
+    public function destroy(Request $request, Faaliyet $faaliyet): JsonResponse
     {
+        $this->assertErisim($request, $faaliyet);
+
         $kayitSayisi = $faaliyet->kayitlar()->count();
 
         if ($kayitSayisi > 0) {
@@ -96,5 +124,38 @@ class FaaliyetController extends Controller
 
         $faaliyet->delete();
         return response()->json(null, 204);
+    }
+
+    private function assertErisim(Request $request, Faaliyet $faaliyet): void
+    {
+        if (!BirimKapsami::donemeErisebilirMi($request->user(), $faaliyet->donem)) {
+            abort(403, 'Bu faaliyet sizin biriminizin kapsamında değil.');
+        }
+    }
+
+    /**
+     * Puanlar kayıt anında dondurulmaz, her raporda yeniden hesaplanır. Bu
+     * yüzden kayıt girilmiş bir faaliyetin puanını veya hedefini değiştirmek
+     * geçmişe dönük olarak tüm şubelerin skorunu sessizce değiştirir; dönem
+     * taşımak ise kayıtların ay bağlantısını tutarsız bırakır.
+     */
+    private function assertPuanlamaDegistirilebilir(Faaliyet $faaliyet, array $data): void
+    {
+        $kilitliAlanlar = array_filter(
+            ['puan', 'hedef', 'donem_id'],
+            fn (string $alan) => array_key_exists($alan, $data) && $data[$alan] != $faaliyet->{$alan}
+        );
+
+        if (!$kilitliAlanlar) {
+            return;
+        }
+
+        $kayitSayisi = $faaliyet->kayitlar()->count();
+
+        if ($kayitSayisi > 0) {
+            throw ValidationException::withMessages([
+                'puan' => "Bu faaliyete {$kayitSayisi} kayıt girilmiş; puan, hedef ve dönem artık değiştirilemez. Değişiklik geçmiş skorları da etkilerdi. Yeni bir faaliyet tanımlayıp bunu Pasif yapabilirsiniz.",
+            ]);
+        }
     }
 }

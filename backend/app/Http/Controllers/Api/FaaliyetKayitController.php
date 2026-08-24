@@ -23,13 +23,19 @@ class FaaliyetKayitController extends Controller
             'sube:id,name',
         ])->orderByDesc('created_at');
 
-        // Kullanıcının kapsamı dışındaki şubelerin kayıtları hiç görünmemeli;
-        // istenen sube_id filtresi bu kapsamın üstüne uygulanır.
-        BirimKapsami::subeIdKolonunaGore($query, $user);
-
-        if ($user->role !== 'sube_yoneticisi' && $request->filled('sube_id')) {
+        // Şube yöneticisi tüm birimlere kayıt girer ama yalnızca kendi şubesine;
+        // birim yöneticisi tüm şubeleri görür ama yalnızca kendi biriminin
+        // dönemlerindeki faaliyetler için.
+        if (BirimKapsami::subeIleSinirliMi($user)) {
+            if (!$user->sube_id) {
+                return response()->json([]);
+            }
+            $query->where('sube_id', $user->sube_id);
+        } elseif ($request->filled('sube_id')) {
             $query->where('sube_id', $request->integer('sube_id'));
         }
+
+        BirimKapsami::donemIliskisineGore($query, $user, 'faaliyet.donem');
 
         if ($request->filled('faaliyet_id')) {
             $query->where('faaliyet_id', $request->integer('faaliyet_id'));

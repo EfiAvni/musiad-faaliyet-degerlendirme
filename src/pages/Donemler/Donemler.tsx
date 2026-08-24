@@ -6,6 +6,9 @@ import { donemlerApi } from '@/services/donemService'
 import type { Donem as ApiDonem } from '@/types/donem'
 import { subelerApi } from '@/services/subeService'
 import type { Sube as ApiSube } from '@/types/sube'
+import { birimlerApi } from '@/services/birimService'
+import type { Birim } from '@/types/birim'
+import type { User } from '@/types/auth'
 import { useModal } from '@/hooks/useModal'
 import { inputCls } from '@/utils/constants'
 import { formatTarihUzun } from '@/utils/formatters'
@@ -22,14 +25,22 @@ import { SubeChecklist } from './SubeChecklist'
 import { GecmisDonemlerListesi } from './GecmisDonemlerListesi'
 import { GecmisDonemDetay } from './GecmisDonemDetay'
 
-export function DonemlerPage({ onShowFaaliyetler, onShowRapor }: { onShowFaaliyetler: (donemId: number) => void; onShowRapor: (donemId: number) => void }) {
+export function DonemlerPage({ onShowFaaliyetler, onShowRapor, user }: {
+  onShowFaaliyetler: (donemId: number) => void
+  onShowRapor: (donemId: number) => void
+  user: User
+}) {
+  const isSuperAdmin = user.role === 'superadmin'
+
   const [items, setItems] = useState<ApiDonem[]>([])
   const [loading, setLoading] = useState(true)
   const [apiError, setApiError] = useState('')
 
   const [subeler, setSubeler] = useState<ApiSube[]>([])
+  const [birimler, setBirimler] = useState<Birim[]>([])
 
   const [showModal, setShowModal] = useState(false)
+  const [formBirimId, setFormBirimId] = useState<number | ''>('')
   const [formName, setFormName] = useState('')
   const [formStartMonth, setFormStartMonth] = useState('')
   const [formEndMonth, setFormEndMonth] = useState('')
@@ -79,7 +90,16 @@ export function DonemlerPage({ onShowFaaliyetler, onShowRapor }: { onShowFaaliye
     } catch { /* şube listesi sadece seçim amaçlı, sessizce geç */ }
   }
 
-  useEffect(() => { loadDonemler(); loadSubeler() }, [])
+  // Birim seçimi yalnızca süper adminde görünür; diğer roller kendi birimlerine
+  // dönem açar ve backend birimi zaten kendisi belirler.
+  const loadBirimler = async () => {
+    if (!isSuperAdmin) return
+    try {
+      setBirimler(await birimlerApi.list())
+    } catch { /* birim listesi sadece seçim amaçlı, sessizce geç */ }
+  }
+
+  useEffect(() => { loadDonemler(); loadSubeler(); loadBirimler() }, [])
 
   const aktifDonemler = items.filter(d => d.status === 'active')
   const taslakDonemler = items.filter(d => d.status === 'pending')
@@ -104,12 +124,13 @@ export function DonemlerPage({ onShowFaaliyetler, onShowRapor }: { onShowFaaliye
   }
 
   const openCreate = () => {
-    setFormName(''); setFormStartMonth(''); setFormEndMonth('')
+    setFormBirimId(''); setFormName(''); setFormStartMonth(''); setFormEndMonth('')
     setFormTumSubeler(true); setFormSubeIds([]); setFormError('')
     setShowModal(true)
   }
 
   const handleCreate = async () => {
+    if (isSuperAdmin && !formBirimId) { setFormError('Dönemin hangi birime ait olacağını seçin.'); return }
     if (!formName.trim() || !formStartMonth || !formEndMonth) { setFormError('Dönem adı, başlangıç ve bitiş ayı zorunludur.'); return }
     const count = ayFarki(formStartMonth, formEndMonth)
     if (count !== null && count <= 0) { setFormError('Bitiş ayı başlangıç ayından önce olamaz.'); return }
@@ -118,12 +139,13 @@ export function DonemlerPage({ onShowFaaliyetler, onShowRapor }: { onShowFaaliye
     try {
       await donemlerApi.create({
         name: formName.trim(), start_date: `${formStartMonth}-01`, end_date: `${formEndMonth}-01`,
+        birim_id: isSuperAdmin ? Number(formBirimId) : undefined,
         tum_subeler: formTumSubeler, sube_ids: formTumSubeler ? undefined : formSubeIds,
       })
       await loadDonemler()
       setShowModal(false)
     } catch (e: any) {
-      setFormError(e?.errors?.name?.[0] ?? e?.errors?.start_date?.[0] ?? e?.errors?.end_date?.[0] ?? e?.errors?.sube_ids?.[0] ?? e?.message ?? 'Kayıt sırasında hata oluştu.')
+      setFormError(e?.errors?.name?.[0] ?? e?.errors?.birim_id?.[0] ?? e?.errors?.start_date?.[0] ?? e?.errors?.end_date?.[0] ?? e?.errors?.sube_ids?.[0] ?? e?.message ?? 'Kayıt sırasında hata oluştu.')
     } finally {
       setSaving(false)
     }
@@ -287,7 +309,15 @@ export function DonemlerPage({ onShowFaaliyetler, onShowRapor }: { onShowFaaliye
               <Calendar size={20} style={{ color: variant === 'active' ? '#B99C1A' : '#9ca3af' }} />
             </div>
             <div>
-              <h3 className="font-semibold text-gray-900" style={{ fontFamily: 'Instrument Sans, sans-serif' }}>{d.name}</h3>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-semibold text-gray-900" style={{ fontFamily: 'Instrument Sans, sans-serif' }}>{d.name}</h3>
+                {d.birim && (
+                  <span className="text-xs px-2 py-0.5 rounded-md font-medium"
+                    style={{ background: '#7c3aed12', color: '#7c3aed' }}>
+                    {d.birim.name}
+                  </span>
+                )}
+              </div>
               <p className="text-sm text-gray-400 mt-0.5">
                 {formatTarih(d.start_date)} – {formatTarih(d.end_date)} · {d.faaliyetler_count ?? 0} faaliyet
               </p>
@@ -399,6 +429,18 @@ export function DonemlerPage({ onShowFaaliyetler, onShowRapor }: { onShowFaaliye
         <Modal title="Yeni Dönem Aç" onClose={() => setShowModal(false)} wide={!formTumSubeler}>
           <div className={formTumSubeler ? '' : 'grid grid-cols-[18rem_1fr] gap-6'}>
             <div className="space-y-4">
+              {isSuperAdmin && (
+                <FormField label="Birim">
+                  <select className={inputCls} value={formBirimId}
+                    onChange={e => setFormBirimId(e.target.value ? Number(e.target.value) : '')}>
+                    <option value="">Birim seçin...</option>
+                    {birimler.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                  <p className="text-xs text-gray-400 mt-1.5">
+                    Bu dönem yalnızca seçilen birime ait olur; diğer birimler göremez.
+                  </p>
+                </FormField>
+              )}
               <FormField label="Dönem Adı">
                 <input className={inputCls} placeholder="örn: 2026-2027 Değerlendirme Dönemi" value={formName}
                   onChange={e => setFormName(e.target.value)} />
@@ -424,7 +466,7 @@ export function DonemlerPage({ onShowFaaliyetler, onShowRapor }: { onShowFaaliye
           <div className="flex items-center justify-end gap-2 pt-4">
             <Btn variant="secondary" onClick={() => setShowModal(false)}>İptal</Btn>
             <Btn variant="primary" onClick={handleCreate}
-              disabled={saving || !formName.trim() || !formStartMonth || !formEndMonth || (!formTumSubeler && formSubeIds.length === 0)}>
+              disabled={saving || (isSuperAdmin && !formBirimId) || !formName.trim() || !formStartMonth || !formEndMonth || (!formTumSubeler && formSubeIds.length === 0)}>
               {saving ? 'Oluşturuluyor...' : 'Dönem Aç'}
             </Btn>
           </div>

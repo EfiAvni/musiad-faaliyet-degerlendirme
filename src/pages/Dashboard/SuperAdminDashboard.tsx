@@ -49,7 +49,8 @@ export function SuperAdminDashboard({ onNavigate }: { onNavigate: (p: Page) => v
   }, [])
 
   const aktifDonemSayisi = donemler.filter(d => d.status === 'active').length
-  const subeSayisiByBirim = (birimId: number) => subeler.filter(s => s.birim_id === birimId).length
+  const aktifDonemAdi = (birimId: number) =>
+    donemler.find(d => d.birim_id === birimId && d.status === 'active')?.name ?? '—'
 
   if (loading) return <Loading />
 
@@ -95,7 +96,7 @@ export function SuperAdminDashboard({ onNavigate }: { onNavigate: (p: Page) => v
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-800">{b.name}</p>
-                    <p className="text-xs text-gray-400">{b.subeler_count} şube</p>
+                    <p className="text-xs text-gray-400">{b.donemler_count} dönem</p>
                   </div>
                 </div>
                 <StatusBadge status={b.status} />
@@ -135,7 +136,7 @@ export function SuperAdminDashboard({ onNavigate }: { onNavigate: (p: Page) => v
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="font-semibold text-gray-900 text-sm" style={{ fontFamily: 'Instrument Sans, sans-serif' }}>Birim Özeti</h3>
-            <p className="text-xs text-gray-400 mt-0.5">Şube dağılımı</p>
+            <p className="text-xs text-gray-400 mt-0.5">Her birim tüm şubeleri kapsar; dönemler birime özeldir</p>
           </div>
           <Btn variant="ghost" size="sm" onClick={() => onNavigate('birimler')}>Tümünü gör <ChevronRight size={13} /></Btn>
         </div>
@@ -143,7 +144,7 @@ export function SuperAdminDashboard({ onNavigate }: { onNavigate: (p: Page) => v
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-50">
-                {['Birim', 'Kuruluş', 'Şube', 'Durum'].map(h => (
+                {['Birim', 'Kuruluş', 'Dönem', 'Aktif Dönem', 'Durum'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">{h}</th>
                 ))}
               </tr>
@@ -153,7 +154,8 @@ export function SuperAdminDashboard({ onNavigate }: { onNavigate: (p: Page) => v
                 <tr key={b.id} className="border-b border-gray-50 hover:bg-gray-50/60">
                   <td className="px-4 py-3 text-sm font-medium text-gray-900">{b.name}</td>
                   <td className="px-4 py-3 text-sm text-gray-600">{b.created_year ?? '—'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600 tabular-nums">{b.subeler_count || subeSayisiByBirim(b.id)}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 tabular-nums">{b.donemler_count}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{aktifDonemAdi(b.id)}</td>
                   <td className="px-4 py-3"><StatusBadge status={b.status} /></td>
                 </tr>
               ))}

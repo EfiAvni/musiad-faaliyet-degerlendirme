@@ -69,7 +69,7 @@ export default function App() {
       case 'ayarlar':       return <PlaceholderPage title="Genel Ayarlar"   subtitle="Sistem ayarları" />
       case 'subeler':       return <SubelerPage />
       case 'faaliyetler':   return <FaaliyetlerPage initialDonemId={faaliyetlerInitialDonemId} />
-      case 'donemler':      return <DonemlerPage onShowFaaliyetler={openFaaliyetlerForDonem} onShowRapor={openRaporForDonem} />
+      case 'donemler':      return <DonemlerPage onShowFaaliyetler={openFaaliyetlerForDonem} onShowRapor={openRaporForDonem} user={currentUser} />
       case 'faaliyetlerim': return <FaaliyetlerimPage />
       case 'raporlar':      return <RaporlarPage initialDonemId={raporlarInitialDonemId} />
       default:              return null

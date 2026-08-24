@@ -36,10 +36,11 @@ class SilmeKorumasiTest extends TestCase
     private function kayitliKurulum(): array
     {
         $birim = Birim::create(['name' => 'Teşkilatlanma', 'status' => 'active']);
-        $sube = Sube::create(['name' => 'Ankara Şubesi', 'birim_id' => $birim->id, 'uye_sayisi' => 0, 'status' => 'active']);
+        $sube = Sube::create(['name' => 'Ankara Şubesi', 'uye_sayisi' => 0, 'status' => 'active']);
 
         $donem = Donem::create([
             'name'        => '2026 Birinci Yarı',
+            'birim_id'    => $birim->id,
             'start_date'  => now()->startOfMonth(),
             'end_date'    => now()->endOfMonth(),
             'status'      => 'completed',
@@ -112,11 +113,12 @@ class SilmeKorumasiTest extends TestCase
         $this->deleteJson("/api/donemler/{$donem->id}")->assertStatus(422);
     }
 
-    public function test_subesi_olan_birim_silinemez(): void
+    public function test_donemi_olan_birim_silinemez(): void
     {
         $k = $this->kayitliKurulum();
         Sanctum::actingAs(User::factory()->create(['role' => 'superadmin']));
 
+        // Birimi silmek dönemlerini, faaliyetlerini ve tüm kayıtlarını götürürdü.
         $this->deleteJson("/api/birimler/{$k['birim']->id}")->assertStatus(422);
 
         $this->assertDatabaseHas('birimler', ['id' => $k['birim']->id, 'deleted_at' => null]);

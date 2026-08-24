@@ -14,8 +14,10 @@ class Birim extends Model
 
     protected $fillable = ['name', 'yonetici_id', 'status', 'created_year'];
 
-    public function subeler(): HasMany
+    // Şubeler birime ait değil, tüm birimler için ortaktır. Birime ait olan
+    // dönemlerdir - ayrışma orada yapılır.
+    public function donemler(): HasMany
     {
-        return $this->hasMany(Sube::class);
+        return $this->hasMany(Donem::class);
     }
 }

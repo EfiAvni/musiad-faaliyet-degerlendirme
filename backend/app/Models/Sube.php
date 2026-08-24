@@ -14,18 +14,15 @@ class Sube extends Model
 
     protected $table = 'subeler';
 
+    // Şubeler tüm birimler için ortaktır; birim ayrışması dönem seviyesinde
+    // yapılır (donemler.birim_id), şubede birim alanı tutulmaz.
     protected $fillable = [
-        'name', 'birim_id', 'yonetici_id', 'uye_sayisi', 'status',
+        'name', 'yonetici_id', 'uye_sayisi', 'status',
     ];
 
     protected $casts = [
         'uye_sayisi' => 'integer',
     ];
-
-    public function birim(): BelongsTo
-    {
-        return $this->belongsTo(Birim::class);
-    }
 
     public function yonetici(): BelongsTo
     {

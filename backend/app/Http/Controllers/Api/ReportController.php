@@ -7,7 +7,6 @@ use App\Models\Donem;
 use App\Models\Faaliyet;
 use App\Models\FaaliyetKayit;
 use App\Models\Sube;
-use App\Models\User;
 use App\Support\BirimKapsami;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
@@ -20,14 +19,18 @@ class ReportController extends Controller
 {
     public function show(Request $request, Donem $donem): JsonResponse
     {
-        return response()->json($this->buildReport($donem, $request->user()));
+        $this->assertErisim($request, $donem);
+
+        return response()->json($this->buildReport($donem));
     }
 
     public function pdf(Request $request, Donem $donem): Response
     {
+        $this->assertErisim($request, $donem);
+
         Carbon::setLocale('tr');
 
-        $report = $this->buildReport($donem, $request->user());
+        $report = $this->buildReport($donem);
         $logoPath = resource_path('images/musiad-logo.png');
         $logoBase64 = is_file($logoPath) ? base64_encode(file_get_contents($logoPath)) : null;
 
@@ -46,15 +49,19 @@ class ReportController extends Controller
         return $pdf->download($dosyaAdi);
     }
 
-    private function buildReport(Donem $donem, User $user): array
+    /** Dönem tek bir birime ait olduğu için rapor da o birimin verisidir; şube filtresi gerekmez. */
+    private function assertErisim(Request $request, Donem $donem): void
+    {
+        if (!BirimKapsami::donemeErisebilirMi($request->user(), $donem)) {
+            abort(403, 'Bu dönem sizin biriminizin kapsamında değil.');
+        }
+    }
+
+    private function buildReport(Donem $donem): array
     {
         $donem->loadMissing(['aylar', 'subeler:id,name']);
 
         $subeQuery = $donem->tum_subeler ? Sube::query() : $donem->subeler();
-
-        // Rapor yalnızca kullanıcının kapsamındaki şubeleri içerir; birim
-        // yöneticisi başka birimlerin performansını görmemeli.
-        BirimKapsami::subeIdKolonunaGore($subeQuery, $user, 'subeler.id');
 
         $subeler = $subeQuery->where('subeler.status', 'active')
             ->orderBy('subeler.name')

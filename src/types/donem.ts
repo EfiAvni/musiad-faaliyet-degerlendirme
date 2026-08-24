@@ -16,6 +16,9 @@ export type PeriyotTipi = 'monthly' | 'quarterly' | 'semi_annual' | 'annual' | '
 export type Donem = {
   id: number
   name: string
+  /** Dönem tek bir birime aittir; birimler arası ayrışma burada yapılır. */
+  birim_id: number
+  birim?: { id: number; name: string } | null
   start_date: string
   end_date: string
   status: DonemStatus

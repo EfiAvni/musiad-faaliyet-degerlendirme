@@ -1,16 +1,15 @@
+// Şubeler tüm birimler için ortaktır - birim bilgisi şubede değil dönemde tutulur.
 export type Sube = {
   id: number
   name: string
-  birim_id: number | null
   yonetici_id: number | null
   uye_sayisi: number
   status: 'active' | 'passive'
   created_at: string
   updated_at: string
-  birim?: { id: number; name: string } | null
 }
 
-export type ImportItem = { name: string; uye_sayisi?: number; birim_id?: number }
+export type ImportItem = { name: string; uye_sayisi?: number }
 export type ImportResult = { created: number; skipped: string[]; message: string }
 
 export type PuanOzeti = {

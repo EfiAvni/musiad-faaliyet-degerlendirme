@@ -25,9 +25,10 @@ class DonemController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = Donem::withCount(['aylar', 'faaliyetler'])
-            ->with('subeler:id,name')
+            ->with(['subeler:id,name', 'birim:id,name'])
             ->orderByDesc('start_date');
 
+        BirimKapsami::donemSorgusu($query, $request->user());
         $this->scopeToSube($query, $request->user());
 
         return response()->json($query->get());
@@ -37,12 +38,15 @@ class DonemController extends Controller
     {
         $data = $request->validate([
             'name'        => 'required|string|max:255|unique:donemler',
+            'birim_id'    => 'sometimes|integer|exists:birimler,id',
             'start_date'  => 'required|date',
             'end_date'    => 'required|date|after_or_equal:start_date',
             'tum_subeler' => 'sometimes|boolean',
             'sube_ids'    => 'sometimes|array',
             'sube_ids.*'  => 'integer|exists:subeler,id',
         ]);
+
+        $data['birim_id'] = $this->hedefBirimId($request, $data['birim_id'] ?? null);
 
         $tumSubeler = $data['tum_subeler'] ?? true;
         $subeIds = $data['sube_ids'] ?? [];
@@ -60,6 +64,7 @@ class DonemController extends Controller
         $donem = DB::transaction(function () use ($data, $start, $end, $tumSubeler, $subeIds) {
             $donem = Donem::create([
                 'name'        => $data['name'],
+                'birim_id'    => $data['birim_id'],
                 'start_date'  => $start,
                 'end_date'    => $end->copy()->endOfMonth(),
                 'status'      => 'pending',
@@ -75,23 +80,24 @@ class DonemController extends Controller
             return $donem;
         });
 
-        return response()->json($donem->load(['aylar', 'subeler:id,name']), 201);
+        return response()->json($donem->load(['aylar', 'subeler:id,name', 'birim:id,name']), 201);
     }
 
     public function show(Request $request, Donem $donem): JsonResponse
     {
-        $user = $request->user();
-        if ($user->role === 'sube_yoneticisi' && !$donem->subeErisimVarMi($user->sube_id)) {
+        if (!BirimKapsami::donemKapsamindaMi($request->user(), $donem)) {
             abort(403, 'Bu döneme erişim yetkiniz yok.');
         }
 
         return response()->json(
-            $donem->load(['aylar', 'subeler:id,name'])->loadCount('faaliyetler')
+            $donem->load(['aylar', 'subeler:id,name', 'birim:id,name'])->loadCount('faaliyetler')
         );
     }
 
     public function update(Request $request, Donem $donem): JsonResponse
     {
+        $this->assertDonemErisimi($request, $donem);
+
         $data = $request->validate([
             'name'        => ['sometimes', 'string', 'max:255', Rule::unique('donemler')->ignore($donem->id)],
             'start_date'  => 'sometimes|date',
@@ -167,8 +173,10 @@ class DonemController extends Controller
         return response()->json($donem->fresh()->load(['aylar', 'subeler:id,name']));
     }
 
-    public function destroy(Donem $donem): JsonResponse
+    public function destroy(Request $request, Donem $donem): JsonResponse
     {
+        $this->assertDonemErisimi($request, $donem);
+
         if ($donem->status === 'active') {
             throw ValidationException::withMessages([
                 'status' => 'Aktif dönem silinemez. Önce dönemi tamamlayın, sonra silin.',
@@ -193,11 +201,26 @@ class DonemController extends Controller
         return response()->json(null, 204);
     }
 
-    public function activate(Donem $donem): JsonResponse
+    public function activate(Request $request, Donem $donem): JsonResponse
     {
+        $this->assertDonemErisimi($request, $donem);
+
         if ($donem->status !== 'pending') {
             throw ValidationException::withMessages([
                 'status' => 'Sadece taslak dönemler aktif edilebilir. Tamamlanmış bir dönem tekrar aktif edilemez.',
+            ]);
+        }
+
+        // Puan özeti ve panolar birim başına tek aktif dönem varsayar; iki aktif
+        // dönem olursa hangisinden hesaplandığı belirsizleşir.
+        $mevcutAktif = Donem::where('birim_id', $donem->birim_id)
+            ->where('status', 'active')
+            ->whereKeyNot($donem->id)
+            ->first();
+
+        if ($mevcutAktif) {
+            throw ValidationException::withMessages([
+                'status' => "Bu birimde zaten aktif bir dönem var: {$mevcutAktif->name}. Önce onu tamamlayın.",
             ]);
         }
 
@@ -206,8 +229,10 @@ class DonemController extends Controller
         return response()->json($donem->fresh()->load('aylar'));
     }
 
-    public function complete(Donem $donem): JsonResponse
+    public function complete(Request $request, Donem $donem): JsonResponse
     {
+        $this->assertDonemErisimi($request, $donem);
+
         if ($donem->status !== 'active') {
             throw ValidationException::withMessages([
                 'status' => 'Sadece aktif dönem tamamlanabilir.',
@@ -232,25 +257,44 @@ class DonemController extends Controller
         return response()->json($ay->fresh());
     }
 
-    /**
-     * Kapsamı belirli şubelere daraltılmış bir dönem, yalnızca o şubelere
-     * erişebilen yöneticiler tarafından yönetilebilir. Tüm şubeleri kapsayan
-     * dönemler ortak olduğu için kısıtlanmaz.
-     */
+    /** Dönem yönetimi yalnızca dönemin sahibi birimin yöneticisine (ve süper admine) açıktır. */
     private function assertDonemErisimi(Request $request, ?Donem $donem): void
+    {
+        if (!BirimKapsami::donemeErisebilirMi($request->user(), $donem)) {
+            abort(403, 'Bu dönem sizin biriminizin kapsamında değil.');
+        }
+    }
+
+    /**
+     * Birim yöneticisi yalnızca kendi birimine dönem açabilir; birim
+     * belirtmezse kendi birimine düşer. Süper admin birimi seçmek zorundadır -
+     * dönem birimsiz olamaz.
+     */
+    private function hedefBirimId(Request $request, ?int $istenen): int
     {
         $user = $request->user();
 
-        if (!$donem || $user->role === 'superadmin' || $donem->tum_subeler) {
-            return;
+        if ($user->role !== 'superadmin') {
+            if ($istenen !== null && $istenen !== $user->birim_id) {
+                abort(403, 'Yalnızca kendi biriminize dönem tanımlayabilirsiniz.');
+            }
+
+            if (!$user->birim_id) {
+                throw ValidationException::withMessages([
+                    'birim_id' => 'Hesabınıza birim atanmamış, dönem oluşturamazsınız.',
+                ]);
+            }
+
+            return $user->birim_id;
         }
 
-        $kapsamdaki = BirimKapsami::subeIdleri($user) ?? [];
-        $donemSubeleri = $donem->subeler()->pluck('subeler.id')->all();
-
-        if (!array_intersect($kapsamdaki, $donemSubeleri)) {
-            abort(403, 'Bu dönem sizin biriminizin kapsamında değil.');
+        if (!$istenen) {
+            throw ValidationException::withMessages([
+                'birim_id' => 'Dönemin hangi birime ait olacağını seçmelisiniz.',
+            ]);
         }
+
+        return $istenen;
     }
 
     private function scopeToSube($query, $user): void

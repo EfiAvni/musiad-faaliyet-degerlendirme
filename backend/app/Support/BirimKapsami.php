@@ -2,62 +2,84 @@
 
 namespace App\Support;
 
-use App\Models\Sube;
+use App\Models\Donem;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
  * Rol kontrolü "bu uç noktayı çağırabilir mi" sorusunu yanıtlar; bu sınıf
- * "hangi kayıtları görebilir" sorusunu yanıtlar. İkisi ayrı: birim yöneticisi
- * şube listesini çağırabilir ama yalnızca kendi biriminin şubelerini görmeli.
+ * "hangi kayıtları görebilir" sorusunu yanıtlar.
  *
- * Süper admin her şeyi görür. Birim yöneticisi kendi biriminin şubelerini,
- * şube yöneticisi yalnızca kendi şubesini görür.
+ * Veri modeli: şubeler tüm birimler için ortaktır - MÜSİAD Ankara hem
+ * Teşkilatlanma'nın hem GENÇ MÜSİAD'ın şubesidir. Ayrışma dönem seviyesinde
+ * olur: her dönem tek bir birime aittir.
+ *
+ *   Süper admin      : her şeyi görür.
+ *   Birim yöneticisi : tüm şubeleri, ama yalnızca kendi biriminin dönemlerini.
+ *   Şube yöneticisi  : tüm birimlerin dönemlerini, ama yalnızca kendi şubesine
+ *                      ait kayıtları (tek hesapla her birime kayıt girer).
  */
 class BirimKapsami
 {
-    /** Kullanıcının erişebildiği şube id'leri; null ise kısıt yok (süper admin). */
-    public static function subeIdleri(User $user): ?array
+    /** Kullanıcı yalnızca tek bir birimin verisiyle mi sınırlı? */
+    public static function birimIleSinirliMi(User $user): bool
     {
-        return match ($user->role) {
-            'superadmin' => null,
-            'birim_yoneticisi' => $user->birim_id
-                ? Sube::where('birim_id', $user->birim_id)->pluck('id')->all()
-                : [],
-            default => $user->sube_id ? [$user->sube_id] : [],
-        };
+        return $user->role === 'birim_yoneticisi';
     }
 
-    /** Şube sorgusunu kullanıcının kapsamına daraltır. */
-    public static function subeSorgusu(Builder $query, User $user): Builder
+    /** Kullanıcı yalnızca tek bir şubenin kayıtlarıyla mı sınırlı? */
+    public static function subeIleSinirliMi(User $user): bool
     {
-        return match ($user->role) {
-            'superadmin' => $query,
-            'birim_yoneticisi' => $user->birim_id
-                ? $query->where('birim_id', $user->birim_id)
-                : $query->whereRaw('1 = 0'),
-            default => $user->sube_id
-                ? $query->whereKey($user->sube_id)
-                : $query->whereRaw('1 = 0'),
-        };
+        return $user->role === 'sube_yoneticisi';
     }
 
-    /** Bir sorguyu sube_id kolonu üzerinden kullanıcının kapsamına daraltır. */
-    public static function subeIdKolonunaGore(Builder $query, User $user, string $kolon = 'sube_id'): Builder
+    /** Dönem sorgusunu kullanıcının birimine daraltır. */
+    public static function donemSorgusu(Builder $query, User $user): Builder
     {
-        $idler = self::subeIdleri($user);
+        if (!self::birimIleSinirliMi($user)) {
+            return $query;
+        }
 
-        return $idler === null ? $query : $query->whereIn($kolon, $idler);
+        return $user->birim_id
+            ? $query->where('birim_id', $user->birim_id)
+            : $query->whereRaw('1 = 0');
     }
 
-    public static function subeyeErisebilirMi(User $user, ?int $subeId): bool
+    /** Dönem ilişkisi üzerinden dolaylı olarak daraltır (faaliyetler gibi). */
+    public static function donemIliskisineGore(Builder $query, User $user, string $iliski = 'donem'): Builder
     {
-        $idler = self::subeIdleri($user);
+        if (!self::birimIleSinirliMi($user)) {
+            return $query;
+        }
 
-        if ($idler === null) {
+        return $user->birim_id
+            ? $query->whereHas($iliski, fn (Builder $q) => $q->where('birim_id', $user->birim_id))
+            : $query->whereRaw('1 = 0');
+    }
+
+    public static function donemeErisebilirMi(User $user, ?Donem $donem): bool
+    {
+        if (!$donem) {
+            return false;
+        }
+
+        if (!self::birimIleSinirliMi($user)) {
             return true;
         }
 
-        return $subeId !== null && in_array($subeId, $idler, true);
+        return $user->birim_id !== null && $donem->birim_id === $user->birim_id;
+    }
+
+    /**
+     * Şube yöneticisi ayrıca dönemin kapsamında olmalı - bir dönem yalnızca
+     * belirli şubeler için açılmış olabilir.
+     */
+    public static function donemKapsamindaMi(User $user, Donem $donem): bool
+    {
+        if (!self::subeIleSinirliMi($user)) {
+            return self::donemeErisebilirMi($user, $donem);
+        }
+
+        return $donem->subeErisimVarMi($user->sube_id);
     }
 }

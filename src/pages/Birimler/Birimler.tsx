@@ -112,7 +112,7 @@ export function BirimlerPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-50">
-                {['Birim Adı', 'Şube Sayısı', 'Durum', ''].map((h, i) => (
+                {['Birim Adı', 'Dönem Sayısı', 'Durum', ''].map((h, i) => (
                   <th key={i} className={`px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase ${i === 3 ? 'w-24' : ''}`}>{h}</th>
                 ))}
               </tr>
@@ -142,7 +142,7 @@ export function BirimlerPage() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-4 text-sm font-medium text-gray-900">{b.subeler_count}</td>
+                  <td className="px-4 py-4 text-sm font-medium text-gray-900">{b.donemler_count}</td>
                   <td className="px-4 py-4"><StatusBadge status={b.status} /></td>
                   <td className="px-4 py-4">
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

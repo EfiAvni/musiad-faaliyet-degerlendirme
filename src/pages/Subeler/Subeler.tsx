@@ -369,7 +369,6 @@ export function SubelerPage() {
                       </div>
                       <div>
                         <p className="text-sm font-medium text-gray-900">{s.name}</p>
-                        {s.birim && <p className="text-xs text-gray-400">{s.birim.name}</p>}
                       </div>
                     </div>
                   </td>

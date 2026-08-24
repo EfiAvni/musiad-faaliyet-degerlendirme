@@ -18,10 +18,10 @@ class DemoUsersSeeder extends Seeder
             ['status' => 'active', 'created_year' => 2020]
         );
 
-        // Şube oluştur
+        // Şubeler tüm birimler için ortaktır, birime bağlanmaz.
         $sube = Sube::firstOrCreate(
             ['name' => 'Ankara Şubesi'],
-            ['birim_id' => $birim->id, 'uye_sayisi' => 0, 'status' => 'active']
+            ['uye_sayisi' => 0, 'status' => 'active']
         );
 
         // Süper Admin

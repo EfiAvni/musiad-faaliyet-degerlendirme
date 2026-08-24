@@ -15,60 +15,44 @@ use Illuminate\Validation\ValidationException;
 
 class SubeController extends Controller
 {
-    public function index(Request $request): JsonResponse
+    // Şubeler tüm birimler için ortak bir ana listedir - MÜSİAD Ankara hem
+    // Teşkilatlanma'nın hem GENÇ MÜSİAD'ın şubesidir. Bu yüzden şube uçlarında
+    // birim kapsamı uygulanmaz; ayrışma dönem seviyesinde olur.
+    public function index(): JsonResponse
     {
-        $query = BirimKapsami::subeSorgusu(Sube::query(), $request->user());
-
-        return response()->json($query->with('birim:id,name')->orderBy('name')->get());
+        return response()->json(Sube::orderBy('name')->get());
     }
 
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
             'name'       => 'required|string|max:255|unique:subeler',
-            'birim_id'   => 'nullable|exists:birimler,id',
             'uye_sayisi' => 'nullable|integer|min:0',
             'status'     => ['nullable', Rule::in(['active', 'passive'])],
         ]);
 
-        // Birim yöneticisi yalnızca kendi birimine şube açabilir; birim
-        // belirtmezse kendi birimine düşer.
-        $data['birim_id'] = $this->hedefBirimId($request, $data['birim_id'] ?? null);
-
-        $sube = Sube::create($data);
-        return response()->json($sube->load('birim:id,name'), 201);
+        return response()->json(Sube::create($data), 201);
     }
 
-    public function show(Request $request, Sube $sube): JsonResponse
+    public function show(Sube $sube): JsonResponse
     {
-        $this->assertErisim($request, $sube);
-
-        return response()->json($sube->load('birim:id,name'));
+        return response()->json($sube);
     }
 
     public function update(Request $request, Sube $sube): JsonResponse
     {
-        $this->assertErisim($request, $sube);
-
         $data = $request->validate([
             'name'       => ['sometimes', 'string', 'max:255', Rule::unique('subeler')->ignore($sube->id)],
-            'birim_id'   => 'nullable|exists:birimler,id',
             'uye_sayisi' => 'nullable|integer|min:0',
             'status'     => ['nullable', Rule::in(['active', 'passive'])],
         ]);
 
-        if (array_key_exists('birim_id', $data)) {
-            $data['birim_id'] = $this->hedefBirimId($request, $data['birim_id']);
-        }
-
         $sube->update($data);
-        return response()->json($sube->load('birim:id,name'));
+        return response()->json($sube);
     }
 
-    public function destroy(Request $request, Sube $sube): JsonResponse
+    public function destroy(Sube $sube): JsonResponse
     {
-        $this->assertErisim($request, $sube);
-
         $kayitSayisi = $sube->kayitlar()->count();
 
         if ($kayitSayisi > 0) {
@@ -89,14 +73,25 @@ class SubeController extends Controller
 
     public function puanOzeti(Request $request, Sube $sube): JsonResponse
     {
-        $this->assertErisim($request, $sube);
+        $user = $request->user();
 
-        $donemId = $request->integer('donem_id') ?: optional(Donem::where('status', 'active')->first())->id;
+        // Dönem birime ait olduğu için "aktif dönem" kullanıcının birimine göre
+        // değişir; açıkça bir dönem istenmişse erişim yetkisi kontrol edilir.
+        if ($istenenId = $request->integer('donem_id')) {
+            $donem = Donem::find($istenenId);
 
-        if (!$donemId) {
+            if (!BirimKapsami::donemeErisebilirMi($user, $donem)) {
+                abort(403, 'Bu dönem sizin biriminizin kapsamında değil.');
+            }
+        } else {
+            $donem = BirimKapsami::donemSorgusu(Donem::where('status', 'active'), $user)->first();
+        }
+
+        if (!$donem) {
             return response()->json(['donem_id' => null, 'toplam_puan' => 0, 'detaylar' => []]);
         }
 
+        $donemId = $donem->id;
         $faaliyetler = Faaliyet::where('donem_id', $donemId)->get();
 
         $kayitSayilari = FaaliyetKayit::where('sube_id', $sube->id)
@@ -135,7 +130,6 @@ class SubeController extends Controller
             'subeler'              => 'required|array|min:1',
             'subeler.*.name'       => 'required|string|max:255',
             'subeler.*.uye_sayisi' => 'nullable|integer|min:0',
-            'subeler.*.birim_id'   => 'nullable|exists:birimler,id',
         ]);
 
         $created = 0;
@@ -163,7 +157,6 @@ class SubeController extends Controller
             Sube::create([
                 'name'       => $name,
                 'uye_sayisi' => $item['uye_sayisi'] ?? 0,
-                'birim_id'   => $this->hedefBirimId($request, $item['birim_id'] ?? null),
                 'status'     => 'active',
             ]);
             $created++;
@@ -176,29 +169,4 @@ class SubeController extends Controller
         ]);
     }
 
-    private function assertErisim(Request $request, Sube $sube): void
-    {
-        if (!BirimKapsami::subeyeErisebilirMi($request->user(), $sube->id)) {
-            abort(403, 'Bu şube sizin biriminizin kapsamında değil.');
-        }
-    }
-
-    /**
-     * Birim yöneticisi başka bir birime şube yazamaz; birim belirtmezse kendi
-     * birimine düşer. Süper admin istediği birimi seçebilir.
-     */
-    private function hedefBirimId(Request $request, ?int $istenen): ?int
-    {
-        $user = $request->user();
-
-        if ($user->role === 'superadmin') {
-            return $istenen;
-        }
-
-        if ($istenen !== null && $istenen !== $user->birim_id) {
-            abort(403, 'Yalnızca kendi biriminize şube tanımlayabilirsiniz.');
-        }
-
-        return $user->birim_id;
-    }
 }

@@ -14,7 +14,7 @@ class BirimController extends Controller
     public function index(): JsonResponse
     {
         return response()->json(
-            Birim::withCount('subeler')->orderBy('name')->get()
+            Birim::withCount('donemler')->orderBy('name')->get()
         );
     }
 
@@ -55,11 +55,13 @@ class BirimController extends Controller
     {
         $record = Birim::findOrFail($birim);
 
-        $subeSayisi = $record->subeler()->count();
+        // Dönem silme zinciri faaliyetlere ve kayıtlara kadar uzanır; birimi
+        // silmek o birimin tüm geçmişini götürürdü.
+        $donemSayisi = $record->donemler()->count();
 
-        if ($subeSayisi > 0) {
+        if ($donemSayisi > 0) {
             throw ValidationException::withMessages([
-                'birim_id' => "Bu birime bağlı {$subeSayisi} şube var, birim silinemez. Önce şubeleri başka bir birime taşıyın.",
+                'birim_id' => "Bu birime ait {$donemSayisi} dönem var, birim silinemez. Geçmiş dönem verileri raporlama için korunur.",
             ]);
         }
 
@@ -85,7 +87,7 @@ class BirimController extends Controller
             'yonetici_id'   => $b->yonetici_id,
             'status'        => $b->status,
             'created_year'  => $b->created_year,
-            'subeler_count' => $b->subeler()->count(),
+            'donemler_count' => $b->donemler()->count(),
             'created_at'    => (string) $b->created_at,
             'updated_at'    => (string) $b->updated_at,
         ];
