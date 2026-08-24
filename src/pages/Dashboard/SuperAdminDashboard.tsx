@@ -7,6 +7,8 @@ import { subelerApi } from '@/services/subeService'
 import type { Sube } from '@/types/sube'
 import { donemlerApi } from '@/services/donemService'
 import type { Donem } from '@/types/donem'
+import { kullanicilarApi } from '@/services/kullaniciService'
+import type { User } from '@/types/auth'
 import { Card } from '@/components/common/Card'
 import { Btn } from '@/components/common/Btn'
 import { KpiCard } from '@/components/common/KpiCard'
@@ -21,20 +23,23 @@ export function SuperAdminDashboard({ onNavigate }: { onNavigate: (p: Page) => v
   const [birimler, setBirimler] = useState<Birim[]>([])
   const [subeler, setSubeler] = useState<Sube[]>([])
   const [donemler, setDonemler] = useState<Donem[]>([])
+  const [kullanicilar, setKullanicilar] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [apiError, setApiError] = useState('')
 
   useEffect(() => {
     (async () => {
       try {
-        const [birimData, subeData, donemData] = await Promise.all([
+        const [birimData, subeData, donemData, kullaniciData] = await Promise.all([
           birimlerApi.list(),
           subelerApi.list(),
           donemlerApi.list(),
+          kullanicilarApi.list(),
         ])
         setBirimler(birimData)
         setSubeler(subeData)
         setDonemler(donemData)
+        setKullanicilar(kullaniciData)
       } catch {
         setApiError('Sistem özeti yüklenemedi. Backend bağlantısını kontrol edin.')
       } finally {
@@ -62,10 +67,10 @@ export function SuperAdminDashboard({ onNavigate }: { onNavigate: (p: Page) => v
       )}
 
       <div className="grid grid-cols-4 gap-4 mb-6">
-        <KpiCard label="Toplam Birim"  value={`${birimler.length}`}        change="0" changeType="neutral" icon={Building2} color="#7c3aed" />
-        <KpiCard label="Toplam Şube"   value={`${subeler.length}`}         change="0" changeType="neutral" icon={Activity}  color="#B99C1A" />
-        <KpiCard label="Aktif Dönem"   value={`${aktifDonemSayisi}`}       change="0" changeType="neutral" icon={Calendar}  color="#f59e0b" />
-        <KpiCard label="Toplam Dönem"  value={`${donemler.length}`}        change="0" changeType="neutral" icon={Users}     color="#2563eb" />
+        <KpiCard label="Toplam Birim"      value={`${birimler.length}`}      change="0" changeType="neutral" icon={Building2} color="#7c3aed" />
+        <KpiCard label="Toplam Şube"       value={`${subeler.length}`}       change="0" changeType="neutral" icon={Activity}  color="#B99C1A" />
+        <KpiCard label="Kayıtlı Kullanıcı" value={`${kullanicilar.length}`}  change="0" changeType="neutral" icon={Users}     color="#2563eb" />
+        <KpiCard label="Aktif Dönem"       value={`${aktifDonemSayisi}`}     change="0" changeType="neutral" icon={Calendar}  color="#f59e0b" />
       </div>
 
       <div className="grid grid-cols-2 gap-4 mb-4">

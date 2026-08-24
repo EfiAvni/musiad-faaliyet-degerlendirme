@@ -2,3 +2,5 @@ node_modules/
 dist/
 graphify-out/
 .claude/settings.local.json
+frontend_output.log
+*.log

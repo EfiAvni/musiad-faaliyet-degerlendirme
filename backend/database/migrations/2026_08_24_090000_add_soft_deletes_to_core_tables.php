@@ -20,11 +20,18 @@ return new class extends Migration
         'donemler',
         'faaliyetler',
         'faaliyet_kayitlari',
+        // Kullanıcı silinince faaliyet_kayitlari.created_by boşalıyor ve kaydı
+        // kimin girdiği kalıcı olarak kayboluyordu.
+        'users',
     ];
 
     public function up(): void
     {
         foreach (self::TABLOLAR as $tablo) {
+            if (Schema::hasColumn($tablo, 'deleted_at')) {
+                continue;
+            }
+
             Schema::table($tablo, function (Blueprint $table) {
                 $table->softDeletes();
             });
@@ -34,6 +41,10 @@ return new class extends Migration
     public function down(): void
     {
         foreach (self::TABLOLAR as $tablo) {
+            if (!Schema::hasColumn($tablo, 'deleted_at')) {
+                continue;
+            }
+
             Schema::table($tablo, function (Blueprint $table) {
                 $table->dropSoftDeletes();
             });

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -59,7 +60,7 @@ class AuthController extends Controller
         $user->tokens()->delete();
 
         return response()->json([
-            'user'  => $this->userPayload($user),
+            'user'  => new UserResource($user),
             'token' => $user->createToken('api-token')->plainTextToken,
         ]);
     }
@@ -72,46 +73,7 @@ class AuthController extends Controller
 
     public function me(Request $request): JsonResponse
     {
-        return response()->json($this->userPayload($request->user()));
-    }
-
-    /**
-     * İstemciye dönen tek kullanıcı gösterimi. Birim ve şube adları da burada
-     * üretilir - arayüz bu etiketleri kendi tarafında türetmek zorunda kalmasın.
-     */
-    private function userPayload(User $user): array
-    {
-        $user->loadMissing(['birim:id,name', 'sube:id,name']);
-
-        return [
-            'id'        => $user->id,
-            'name'      => $user->name,
-            'email'     => $user->email,
-            'role'      => $user->role,
-            'birim_id'  => $user->birim_id,
-            'sube_id'   => $user->sube_id,
-            'birim_adi' => $user->birim?->name,
-            'sube_adi'  => $user->sube?->name,
-            'initials'  => $this->basHarfler($user->name),
-        ];
-    }
-
-    /** Ad ve soyadın baş harfleri - ikinci adlar atlanır (Muhammet Avni Küçük → MK). */
-    private function basHarfler(string $name): string
-    {
-        $parcalar = preg_split('/\s+/u', trim($name), -1, PREG_SPLIT_NO_EMPTY) ?: [];
-
-        if (!$parcalar) {
-            return '?';
-        }
-
-        $secilen = count($parcalar) === 1
-            ? [$parcalar[0]]
-            : [$parcalar[0], end($parcalar)];
-
-        return Str::upper(collect($secilen)
-            ->map(fn (string $p) => Str::substr($p, 0, 1))
-            ->implode(''));
+        return response()->json(new UserResource($request->user()));
     }
 
     private function throttleAnahtari(Request $request): string
