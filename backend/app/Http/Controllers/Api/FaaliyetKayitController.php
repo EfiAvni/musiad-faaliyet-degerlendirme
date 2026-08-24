@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DonemAy;
 use App\Models\Faaliyet;
 use App\Models\FaaliyetKayit;
+use App\Support\BirimKapsami;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,12 +23,11 @@ class FaaliyetKayitController extends Controller
             'sube:id,name',
         ])->orderByDesc('created_at');
 
-        if ($user->role === 'sube_yoneticisi') {
-            if (!$user->sube_id) {
-                return response()->json([]);
-            }
-            $query->where('sube_id', $user->sube_id);
-        } elseif ($request->filled('sube_id')) {
+        // Kullanıcının kapsamı dışındaki şubelerin kayıtları hiç görünmemeli;
+        // istenen sube_id filtresi bu kapsamın üstüne uygulanır.
+        BirimKapsami::subeIdKolonunaGore($query, $user);
+
+        if ($user->role !== 'sube_yoneticisi' && $request->filled('sube_id')) {
             $query->where('sube_id', $request->integer('sube_id'));
         }
 

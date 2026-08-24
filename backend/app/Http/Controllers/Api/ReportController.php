@@ -7,24 +7,27 @@ use App\Models\Donem;
 use App\Models\Faaliyet;
 use App\Models\FaaliyetKayit;
 use App\Models\Sube;
+use App\Models\User;
+use App\Support\BirimKapsami;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 class ReportController extends Controller
 {
-    public function show(Donem $donem): JsonResponse
+    public function show(Request $request, Donem $donem): JsonResponse
     {
-        return response()->json($this->buildReport($donem));
+        return response()->json($this->buildReport($donem, $request->user()));
     }
 
-    public function pdf(Donem $donem): Response
+    public function pdf(Request $request, Donem $donem): Response
     {
         Carbon::setLocale('tr');
 
-        $report = $this->buildReport($donem);
+        $report = $this->buildReport($donem, $request->user());
         $logoPath = resource_path('images/musiad-logo.png');
         $logoBase64 = is_file($logoPath) ? base64_encode(file_get_contents($logoPath)) : null;
 
@@ -43,11 +46,16 @@ class ReportController extends Controller
         return $pdf->download($dosyaAdi);
     }
 
-    private function buildReport(Donem $donem): array
+    private function buildReport(Donem $donem, User $user): array
     {
         $donem->loadMissing(['aylar', 'subeler:id,name']);
 
         $subeQuery = $donem->tum_subeler ? Sube::query() : $donem->subeler();
+
+        // Rapor yalnızca kullanıcının kapsamındaki şubeleri içerir; birim
+        // yöneticisi başka birimlerin performansını görmemeli.
+        BirimKapsami::subeIdKolonunaGore($subeQuery, $user, 'subeler.id');
+
         $subeler = $subeQuery->where('subeler.status', 'active')
             ->orderBy('subeler.name')
             ->get(['subeler.id', 'subeler.name']);

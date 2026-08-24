@@ -22,9 +22,14 @@ class SilmeKorumasiTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * Silme kurallarını test ediyoruz, birim kapsamını değil - kapsamın
+     * araya girmemesi için süper admin kullanıyoruz (kapsam kuralları
+     * BirimKapsamiTest'te ayrıca doğrulanıyor).
+     */
     private function yonetici(): User
     {
-        return User::factory()->create(['role' => 'birim_yoneticisi']);
+        return User::factory()->create(['role' => 'superadmin']);
     }
 
     /** Kayıt girilmiş, dolayısıyla silinmemesi gereken bir kurulum üretir. */

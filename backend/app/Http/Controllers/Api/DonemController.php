@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Donem;
 use App\Models\DonemAy;
 use App\Models\FaaliyetKayit;
+use App\Support\BirimKapsami;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -220,6 +221,8 @@ class DonemController extends Controller
 
     public function updateAy(Request $request, DonemAy $ay): JsonResponse
     {
+        $this->assertDonemErisimi($request, $ay->donem);
+
         $data = $request->validate([
             'acik_override' => 'present|nullable|boolean',
         ]);
@@ -227,6 +230,27 @@ class DonemController extends Controller
         $ay->update(['acik_override' => $data['acik_override']]);
 
         return response()->json($ay->fresh());
+    }
+
+    /**
+     * Kapsamı belirli şubelere daraltılmış bir dönem, yalnızca o şubelere
+     * erişebilen yöneticiler tarafından yönetilebilir. Tüm şubeleri kapsayan
+     * dönemler ortak olduğu için kısıtlanmaz.
+     */
+    private function assertDonemErisimi(Request $request, ?Donem $donem): void
+    {
+        $user = $request->user();
+
+        if (!$donem || $user->role === 'superadmin' || $donem->tum_subeler) {
+            return;
+        }
+
+        $kapsamdaki = BirimKapsami::subeIdleri($user) ?? [];
+        $donemSubeleri = $donem->subeler()->pluck('subeler.id')->all();
+
+        if (!array_intersect($kapsamdaki, $donemSubeleri)) {
+            abort(403, 'Bu dönem sizin biriminizin kapsamında değil.');
+        }
     }
 
     private function scopeToSube($query, $user): void
