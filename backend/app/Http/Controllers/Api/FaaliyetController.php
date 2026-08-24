@@ -86,6 +86,14 @@ class FaaliyetController extends Controller
 
     public function destroy(Faaliyet $faaliyet): JsonResponse
     {
+        $kayitSayisi = $faaliyet->kayitlar()->count();
+
+        if ($kayitSayisi > 0) {
+            throw ValidationException::withMessages([
+                'faaliyet_id' => "Bu faaliyete {$kayitSayisi} şube kaydı girilmiş, silinemez. Faaliyeti kapatmak için durumunu Pasif yapın.",
+            ]);
+        }
+
         $faaliyet->delete();
         return response()->json(null, 204);
     }

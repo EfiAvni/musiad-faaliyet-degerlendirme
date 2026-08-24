@@ -1,39 +1,12 @@
-import type { Role, User } from '@/types/auth'
+import type { Role } from '@/types/auth'
 import type { PeriyotTipi } from '@/types/donem'
 import type { RaporTab } from '@/types/rapor'
 
 export const MUSIAD_LOGO_URL = 'https://upload.wikimedia.org/wikipedia/tr/thumb/4/4f/Musiad_Logo.png/960px-Musiad_Logo.png?_=20230216124853'
 
-// ─── Mock Kullanıcılar ─────────────────────────────────────────────────────────
-
-export const mockUsers: User[] = [
-  {
-    id: 1, name: 'Muhammet Avni Küçük', email: 'avni.kucuk@musiad.org.tr',
-    password: 'admin123', role: 'superadmin', roleLabel: 'Süper Admin', initials: 'AK',
-  },
-  {
-    id: 2, name: 'Hüseyin Özer', email: 'huseyin.ozer@musiad.org.tr',
-    password: 'birim123', role: 'birim_yoneticisi', roleLabel: 'Birim Yöneticisi',
-    birim: 'Teşkilatlanma', initials: 'HÖ',
-  },
-  {
-    id: 3, name: 'Ankara Şb. Yöneticisi', email: 'ankara@musiad.org.tr',
-    password: 'sube123', role: 'sube_yoneticisi', roleLabel: 'Şube Yöneticisi',
-    birim: 'Teşkilatlanma', sube: 'Ankara Şubesi', initials: 'AŞ',
-  },
-]
-
 export const roleLabels: Record<Role, string> = {
   superadmin: 'Süper Admin', birim_yoneticisi: 'Birim Yöneticisi', sube_yoneticisi: 'Şube Yöneticisi',
 }
-
-// ─── Mock Veri ─────────────────────────────────────────────────────────────────
-
-export const birimler: { id: number; name: string; sube_count: number; faaliyet_count: number; yonetici: string; status: string; created: string }[] = []
-
-export const subeler: { id: number; name: string; birim: string; yonetici: string; status: string; uye_sayisi: number; faaliyet_tamamlanan: number; faaliyet_toplam: number }[] = []
-
-export const donemler: { id: number; name: string; start: string; end: string; status: string; faaliyet_count: number }[] = []
 
 // ─── Renk Yardımcıları ─────────────────────────────────────────────────────────
 

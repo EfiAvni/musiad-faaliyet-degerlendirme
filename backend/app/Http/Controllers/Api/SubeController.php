@@ -10,6 +10,7 @@ use App\Models\Sube;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class SubeController extends Controller
 {
@@ -52,6 +53,20 @@ class SubeController extends Controller
 
     public function destroy(Sube $sube): JsonResponse
     {
+        $kayitSayisi = $sube->kayitlar()->count();
+
+        if ($kayitSayisi > 0) {
+            throw ValidationException::withMessages([
+                'sube_id' => "Bu şubenin {$kayitSayisi} faaliyet kaydı var, silinemez. Şubeyi kullanım dışı bırakmak için durumunu Pasif yapın.",
+            ]);
+        }
+
+        if ($sube->donemler()->exists()) {
+            throw ValidationException::withMessages([
+                'sube_id' => 'Bu şube bir veya daha fazla dönemin kapsamında, silinemez. Önce şubeyi dönem kapsamından çıkarın.',
+            ]);
+        }
+
         $sube->delete();
         return response()->json(null, 204);
     }
@@ -112,8 +127,18 @@ class SubeController extends Controller
             $name = trim($item['name']);
             if (!$name) continue;
 
-            if (Sube::where('name', $name)->exists()) {
-                $skipped[] = $name;
+            // withTrashed: silinmiş bir şube aynı isimle tekrar yüklenirse yeni
+            // kayıt açmak yerine eskisini geri getiriyoruz - isim alanı benzersiz
+            // olduğu için aksi halde kayıt veritabanı hatasıyla düşerdi.
+            $mevcut = Sube::withTrashed()->where('name', $name)->first();
+
+            if ($mevcut) {
+                if ($mevcut->trashed()) {
+                    $mevcut->restore();
+                    $created++;
+                } else {
+                    $skipped[] = $name;
+                }
                 continue;
             }
 

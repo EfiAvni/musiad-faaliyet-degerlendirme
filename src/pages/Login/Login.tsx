@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { ChevronRight } from 'lucide-react'
 import { authApi } from '@/services/authService'
+import { ApiError } from '@/services/api'
 import type { User } from '@/types/auth'
 import { toDisplayUser } from '@/utils/helpers'
-import { MUSIAD_LOGO_URL, mockUsers, roleColor } from '@/utils/constants'
+import { MUSIAD_LOGO_URL } from '@/utils/constants'
 import { FormField } from '@/components/common/FormField'
 
 export function LoginPage({ onLogin }: { onLogin: (user: User) => void }) {
@@ -19,18 +19,10 @@ export function LoginPage({ onLogin }: { onLogin: (user: User) => void }) {
     try {
       const res = await authApi.login(email, password)
       onLogin(toDisplayUser(res.user))
-    } catch {
-      setError('E-posta veya parola hatalı.')
-      setLoading(false)
-    }
-  }
-
-  const quickLogin = async (user: User) => {
-    setLoading(true)
-    try {
-      const res = await authApi.login(user.email, user.password ?? '')
-      onLogin(toDisplayUser(res.user))
-    } catch {
+    } catch (err) {
+      // Sunucu hız sınırı gibi durumlarda kullanıcıya ne yapması gerektiğini
+      // söyleyen kendi mesajını gönderiyor; onu olduğu gibi gösteriyoruz.
+      setError(err instanceof ApiError ? err.message : 'E-posta veya parola hatalı.')
       setLoading(false)
     }
   }
@@ -58,15 +50,15 @@ export function LoginPage({ onLogin }: { onLogin: (user: User) => void }) {
               Birimler, şubeler ve faaliyetleri tek bir platformdan takip edin ve değerlendirin.
             </p>
           </div>
-          <div className="mt-12 grid grid-cols-3 gap-4">
+          <div className="mt-12 space-y-3">
             {[
-              { label: 'Aktif Birim', value: '4' },
-              { label: 'Toplam Şube', value: '20' },
-              { label: 'Aktif Faaliyet', value: '24' },
+              'Dönem planla, faaliyet tanımla',
+              'Şubelerin kayıtlarını topla',
+              'Puan ve tamamlanma raporlarını al',
             ].map((s, i) => (
-              <div key={i} className="p-4 rounded-2xl border border-white/[0.07]" style={{ background: 'rgba(255,255,255,0.04)' }}>
-                <p className="text-2xl font-bold text-white" style={{ fontFamily: 'Instrument Sans, sans-serif' }}>{s.value}</p>
-                <p className="text-white/40 text-xs mt-1">{s.label}</p>
+              <div key={i} className="flex items-center gap-3">
+                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#ccaa38' }} />
+                <p className="text-white/50 text-sm">{s}</p>
               </div>
             ))}
           </div>
@@ -118,32 +110,9 @@ export function LoginPage({ onLogin }: { onLogin: (user: User) => void }) {
             </button>
           </form>
 
-          {/* Demo hesaplar */}
-          <div className="mt-6">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="h-px flex-1 bg-gray-100" />
-              <span className="text-xs text-gray-400">Demo Hesaplar</span>
-              <div className="h-px flex-1 bg-gray-100" />
-            </div>
-            <div className="space-y-2">
-              {mockUsers.map(u => (
-                <button key={u.id} onClick={() => quickLogin(u)} disabled={loading}
-                  className="w-full flex items-center gap-3 p-3 bg-white border border-gray-100 rounded-xl hover:border-emerald-200 hover:bg-emerald-50/30 transition-all text-left group disabled:opacity-60"
-                  style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold text-white flex-shrink-0"
-                    style={{ background: roleColor[u.role] }}>
-                    {u.initials}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800">{u.name}</p>
-                    <p className="text-xs text-gray-400">{u.roleLabel} · {u.email}</p>
-                  </div>
-                  <ChevronRight size={14} className="text-gray-300 group-hover:text-emerald-600 transition-colors" />
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-gray-400 text-center mt-3">Parola: <span className="font-mono">*rol*123</span> (ör: admin123, birim123, sube123)</p>
-          </div>
+          <p className="text-xs text-gray-400 text-center mt-6">
+            Hesabınız yoksa birim yöneticinizle iletişime geçin.
+          </p>
         </div>
       </div>
     </div>

@@ -75,7 +75,7 @@ export function BirimYoneticisiDashboard({ onNavigate, user }: { onNavigate: (p:
         <h1 className="text-2xl font-semibold text-gray-900" style={{ fontFamily: 'Instrument Sans, sans-serif' }}>
           Hoş geldiniz, {user.name.split(' ')[0]} 👋
         </h1>
-        <p className="text-sm text-gray-500 mt-1">{user.birim} — {donemSubtitle}</p>
+        <p className="text-sm text-gray-500 mt-1">{user.birim_adi ?? 'Birim atanmamış'} — {donemSubtitle}</p>
       </div>
 
       <div className="grid grid-cols-4 gap-4 mb-6">

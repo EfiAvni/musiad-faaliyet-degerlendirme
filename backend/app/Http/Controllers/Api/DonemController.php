@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Donem;
 use App\Models\DonemAy;
+use App\Models\FaaliyetKayit;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -173,7 +174,21 @@ class DonemController extends Controller
             ]);
         }
 
-        $donem->delete();
+        $kayitSayisi = FaaliyetKayit::whereIn('faaliyet_id', $donem->faaliyetler()->select('id'))->count();
+
+        if ($kayitSayisi > 0) {
+            throw ValidationException::withMessages([
+                'status' => "Bu döneme ait {$kayitSayisi} faaliyet kaydı var, dönem silinemez. Geçmiş dönem verileri raporlama için korunur.",
+            ]);
+        }
+
+        // Dönem silinince ona bağlı faaliyetler de sorgulardan düşmeli; yumuşak
+        // silme zincirleme çalışmadığı için burada açıkça yapıyoruz.
+        DB::transaction(function () use ($donem) {
+            $donem->faaliyetler()->delete();
+            $donem->delete();
+        });
+
         return response()->json(null, 204);
     }
 

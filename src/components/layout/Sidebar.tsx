@@ -8,9 +8,15 @@ import { MUSIAD_LOGO_URL, roleColor } from '@/utils/constants'
 type NavItem = { id: string; label: string; icon: React.ElementType }
 
 const navByRole: Record<Role, NavItem[]> = {
+  // Süper Admin, birim yöneticisinin görebildiği her şeyi görebilmeli - backend
+  // bu yetkileri zaten veriyordu, eksik olan yalnızca menü girişleriydi.
   superadmin: [
     { id: 'dashboard',    label: 'Dashboard',      icon: LayoutDashboard },
     { id: 'birimler',     label: 'Birimler',        icon: Building2 },
+    { id: 'subeler',      label: 'Şubeler',         icon: Building2 },
+    { id: 'faaliyetler',  label: 'Faaliyetler',     icon: ClipboardList },
+    { id: 'donemler',     label: 'Dönemler',        icon: Calendar },
+    { id: 'raporlar',     label: 'Raporlar',        icon: BarChart3 },
     { id: 'kullanicilar', label: 'Kullanıcılar',    icon: UserCog },
     { id: 'roller',       label: 'Rol & Yetkiler',  icon: Shield },
     { id: 'ayarlar',      label: 'Genel Ayarlar',   icon: Settings },

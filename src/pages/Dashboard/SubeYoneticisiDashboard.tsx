@@ -54,7 +54,7 @@ export function SubeYoneticisiDashboard({ onNavigate, user }: { onNavigate: (p: 
           Hoş geldiniz, {user.name.split(' ')[0]} 👋
         </h1>
         <p className="text-sm text-gray-500 mt-1">
-          {user.sube} — {donemSubtitle}
+          {user.sube_adi ?? 'Şube atanmamış'} — {donemSubtitle}
         </p>
       </div>
 

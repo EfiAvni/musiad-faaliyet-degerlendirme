@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Birim;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class BirimController extends Controller
 {
@@ -51,7 +53,25 @@ class BirimController extends Controller
 
     public function destroy(int $birim): JsonResponse
     {
-        Birim::findOrFail($birim)->delete();
+        $record = Birim::findOrFail($birim);
+
+        $subeSayisi = $record->subeler()->count();
+
+        if ($subeSayisi > 0) {
+            throw ValidationException::withMessages([
+                'birim_id' => "Bu birime bağlı {$subeSayisi} şube var, birim silinemez. Önce şubeleri başka bir birime taşıyın.",
+            ]);
+        }
+
+        $kullaniciSayisi = User::where('birim_id', $record->id)->count();
+
+        if ($kullaniciSayisi > 0) {
+            throw ValidationException::withMessages([
+                'birim_id' => "Bu birime atanmış {$kullaniciSayisi} kullanıcı var, birim silinemez.",
+            ]);
+        }
+
+        $record->delete();
         return response()->json(null, 204);
     }
 

@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Plus, Edit2, Trash2 } from 'lucide-react'
+import { Plus, Edit2, Trash2, UserCog } from 'lucide-react'
 import type { User } from '@/types/auth'
-import { mockUsers, roleColor } from '@/utils/constants'
+import { roleColor } from '@/utils/constants'
+import { EmptyState } from '@/components/common/EmptyState'
 import { PageHeader } from '@/components/common/PageHeader'
 import { Card } from '@/components/common/Card'
 import { Btn } from '@/components/common/Btn'
@@ -35,8 +36,8 @@ const columns: DataTableColumn<User>[] = [
       </span>
     ),
   },
-  { header: 'Birim', cellClassName: 'px-4 py-4 text-sm text-gray-600', render: u => u.birim || '—' },
-  { header: 'Şube', cellClassName: 'px-4 py-4 text-sm text-gray-600', render: u => u.sube || '—' },
+  { header: 'Birim', cellClassName: 'px-4 py-4 text-sm text-gray-600', render: u => u.birim_adi || '—' },
+  { header: 'Şube', cellClassName: 'px-4 py-4 text-sm text-gray-600', render: u => u.sube_adi || '—' },
   {
     header: '',
     headerClassName: 'px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase w-20',
@@ -52,20 +53,30 @@ const columns: DataTableColumn<User>[] = [
 export function KullanicilarPage() {
   const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
-  const filtered = mockUsers.filter(u =>
+
+  // Kullanıcı API'si henüz yazılmadı. Sabit bir kullanıcı listesi göstermek
+  // yerine boş durum gösteriyoruz - sahte veri gerçek sanılabiliyordu.
+  const users: User[] = []
+  const filtered = users.filter(u =>
     u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase())
   )
 
   return (
     <div className="animate-fade-in">
-      <PageHeader title="Kullanıcılar" subtitle={`${mockUsers.length} kullanıcı kayıtlı`}
+      <PageHeader title="Kullanıcılar" subtitle={`${users.length} kullanıcı kayıtlı`}
         actions={<Btn variant="primary" onClick={() => setShowModal(true)}><Plus size={14} />Kullanıcı Ekle</Btn>} />
-      <Card>
-        <div className="p-4 border-b border-gray-50">
-          <SearchBar placeholder="Kullanıcı ara..." value={search} onChange={setSearch} />
-        </div>
-        <DataTable columns={columns} data={filtered} keyExtractor={u => u.id} />
-      </Card>
+
+      {users.length === 0 ? (
+        <EmptyState icon={UserCog} title="Kullanıcı yönetimi henüz kullanıma açılmadı"
+          subtitle="Kullanıcılar şimdilik doğrudan veritabanından ekleniyor." />
+      ) : (
+        <Card>
+          <div className="p-4 border-b border-gray-50">
+            <SearchBar placeholder="Kullanıcı ara..." value={search} onChange={setSearch} />
+          </div>
+          <DataTable columns={columns} data={filtered} keyExtractor={u => u.id} />
+        </Card>
+      )}
 
       {showModal && (
         <Modal title="Yeni Kullanıcı Ekle" onClose={() => setShowModal(false)}>
