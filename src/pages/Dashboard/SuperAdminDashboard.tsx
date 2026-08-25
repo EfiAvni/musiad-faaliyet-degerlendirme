@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Building2, Users, Calendar, Activity, Plus, ChevronRight, UserCog, Shield, Settings } from 'lucide-react'
+import { Building2, Users, Calendar, Activity, Plus, ChevronRight, UserCog, BarChart3 } from 'lucide-react'
 import type { Page } from '@/types/navigation'
 import { birimlerApi } from '@/services/birimService'
 import type { Birim } from '@/types/birim'
@@ -113,8 +113,7 @@ export function SuperAdminDashboard({ onNavigate }: { onNavigate: (p: Page) => v
               { label: 'Şubeleri Yönet',           icon: Activity,  color: '#B99C1A', page: 'subeler'      as Page },
               { label: 'Dönemleri Yönet',          icon: Calendar,  color: '#f59e0b', page: 'donemler'     as Page },
               { label: 'Kullanıcıları Yönet',      icon: UserCog,   color: '#2563eb', page: 'kullanicilar' as Page },
-              { label: 'Rol & Yetkileri Düzenle',  icon: Shield,    color: '#6b7280', page: 'roller'       as Page },
-              { label: 'Genel Ayarlar',            icon: Settings,  color: '#6b7280', page: 'ayarlar'      as Page },
+              { label: 'Raporları Görüntüle',      icon: BarChart3, color: '#6b7280', page: 'raporlar'     as Page },
             ].map((item, i) => {
               const Icon = item.icon
               return (

@@ -89,28 +89,19 @@ export function SubelerPage() {
 
   const searched = items.filter(s => s.name.toLowerCase().includes(search.toLowerCase()))
 
+  // Sıralama yalnızca kullanıcının seçtiği sütuna göre yapılır. Önceden en
+  // yüksek üye sayılı şube hangi sütuna göre sıralanırsa sıralansın zorla en
+  // üste sabitleniyordu; bu, sıralamayı bozuk gösteriyordu.
   const filtered = (() => {
-    const arr = [...searched]
-    if (sortKey) {
-      arr.sort((a, b) => {
-        let cmp = 0
-        if (sortKey === 'name') cmp = a.name.localeCompare(b.name, 'tr')
-        else if (sortKey === 'uye_sayisi') cmp = a.uye_sayisi - b.uye_sayisi
-        else if (sortKey === 'status') cmp = a.status.localeCompare(b.status)
-        return sortDir === 'asc' ? cmp : -cmp
-      })
-    }
-    if (arr.length > 1) {
-      let topIdx = 0
-      for (let i = 1; i < arr.length; i++) {
-        if (arr[i].uye_sayisi > arr[topIdx].uye_sayisi) topIdx = i
-      }
-      if (topIdx !== 0) {
-        const [top] = arr.splice(topIdx, 1)
-        arr.unshift(top)
-      }
-    }
-    return arr
+    if (!sortKey) return searched
+
+    return [...searched].sort((a, b) => {
+      let cmp = 0
+      if (sortKey === 'name') cmp = a.name.localeCompare(b.name, 'tr')
+      else if (sortKey === 'uye_sayisi') cmp = a.uye_sayisi - b.uye_sayisi
+      else if (sortKey === 'status') cmp = a.status.localeCompare(b.status)
+      return sortDir === 'asc' ? cmp : -cmp
+    })
   })()
 
   const { page, totalPages, pageItems, nextPage, prevPage, setPage } = usePagination(filtered, SAYFA_BOYUTU)
@@ -347,7 +338,6 @@ export function SubelerPage() {
                     {sortKey === 'uye_sayisi' ? (sortDir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />) : <ArrowUpDown size={11} className="text-gray-300" />}
                   </span>
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Faaliyet İlerlemesi</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide select-none cursor-pointer hover:text-gray-600"
                   onClick={() => toggleSort('status')}>
                   <span className="inline-flex items-center gap-1">
@@ -360,14 +350,14 @@ export function SubelerPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={6} className="px-4 py-10 text-center">
+                <tr><td colSpan={5} className="px-4 py-10 text-center">
                   <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
                     <div className="w-4 h-4 border-2 border-gray-200 border-t-emerald-500 rounded-full animate-spin" />
                     Yükleniyor...
                   </div>
                 </td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-400">
+                <tr><td colSpan={5} className="px-4 py-10 text-center text-sm text-gray-400">
                   {search ? 'Arama sonucu bulunamadı' : 'Henüz şube eklenmedi'}
                 </td></tr>
               ) : pageItems.map(s => (
@@ -392,9 +382,6 @@ export function SubelerPage() {
                       <span className="text-sm font-semibold text-gray-900">{s.uye_sayisi.toLocaleString('tr-TR')}</span>
                       <span className="text-xs text-gray-400">üye</span>
                     </div>
-                  </td>
-                  <td className="px-4 py-4">
-                    <span className="text-xs text-gray-400 italic">Dönem atanmadı</span>
                   </td>
                   <td className="px-4 py-4"><StatusBadge status={s.status} /></td>
                   <td className="px-4 py-4">

@@ -1,5 +1,5 @@
 import {
-  LogOut, LayoutDashboard, Building2, UserCog, Shield, Settings, ClipboardList, Calendar, BarChart3, CheckSquare,
+  LogOut, LayoutDashboard, Building2, UserCog, ClipboardList, Calendar, BarChart3, CheckSquare,
 } from 'lucide-react'
 import type { Role, User } from '@/types/auth'
 import type { Page } from '@/types/navigation'
@@ -7,6 +7,10 @@ import { MUSIAD_LOGO_URL, roleColor } from '@/utils/constants'
 
 type NavItem = { id: string; label: string; icon: React.ElementType }
 
+// Rol & Yetkiler ve Genel Ayarlar menüden çıkarıldı: ikisi de içi boş yer
+// tutucuydu ve kullanıcı tıklayınca boş sayfayla karşılaşıyordu. Roller kodda
+// sabit olduğu için düzenlenebilir bir yetki ekranı gerçek bir ihtiyaç haline
+// gelene kadar menüde yer kaplamamalı. Sayfalar App.tsx'te duruyor.
 const navByRole: Record<Role, NavItem[]> = {
   // Süper Admin, birim yöneticisinin görebildiği her şeyi görebilmeli - backend
   // bu yetkileri zaten veriyordu, eksik olan yalnızca menü girişleriydi.
@@ -18,8 +22,6 @@ const navByRole: Record<Role, NavItem[]> = {
     { id: 'donemler',     label: 'Dönemler',        icon: Calendar },
     { id: 'raporlar',     label: 'Raporlar',        icon: BarChart3 },
     { id: 'kullanicilar', label: 'Kullanıcılar',    icon: UserCog },
-    { id: 'roller',       label: 'Rol & Yetkiler',  icon: Shield },
-    { id: 'ayarlar',      label: 'Genel Ayarlar',   icon: Settings },
   ],
   birim_yoneticisi: [
     { id: 'dashboard',   label: 'Dashboard',     icon: LayoutDashboard },
