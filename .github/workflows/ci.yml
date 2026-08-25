@@ -1,0 +1,73 @@
+name: CI
+
+# Derleme, tip kontrolü ve testler şu ana kadar yalnızca elle çalıştırılıyordu.
+# Bu iş akışı main'e giden her değişikliği aynı üç kontrolden geçirir.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Aynı dal için arka arkaya gelen push'larda eski koşuyu iptal et.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Arayüz — tip kontrolü ve derleme
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Bağımlılıklar
+        run: npm ci
+
+      - name: Tip kontrolü
+        run: npx tsc --noEmit
+
+      - name: Derleme
+        run: npm run build
+
+  backend:
+    name: Sunucu — testler
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          # Testler bellek içi SQLite kullanır (phpunit.xml), MySQL servisi gerekmez.
+          extensions: mbstring, pdo_sqlite, sqlite3, gd, zip, bcmath
+          coverage: none
+
+      - name: Composer önbelleği
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: composer-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: composer-
+
+      # composer install sonunda package:discover çalışır; .env'i ondan önce
+      # oluşturuyoruz ki uygulama önyüklemesi eksik ortamla karşılaşmasın.
+      - name: Ortam dosyası
+        working-directory: backend
+        run: cp .env.example .env
+
+      - name: Bağımlılıklar
+        working-directory: backend
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Uygulama anahtarı
+        working-directory: backend
+        run: php artisan key:generate
+
+      - name: Testler
+        working-directory: backend
+        run: php artisan test
