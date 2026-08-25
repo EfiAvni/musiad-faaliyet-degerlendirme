@@ -1,12 +1,13 @@
 import { useState, useMemo } from 'react'
 
 /**
- * Genel amaçlı sayfalama hook'u. NOT: şu an uygulamadaki hiçbir sayfa gerçek
- * sayfalama (pagination) kullanmıyor (ör. Şubeler sayfası 198 kaydı tek seferde
- * listeliyor) - bu yüzden bu hook henüz hiçbir sayfaya bağlanmadı. Var olmayan bir
- * UI davranışını "kullanmak" için sayfalara eklemek mevcut davranışı değiştirir;
- * klasör yapısı gereği burada duruyor, ileride gerçek bir sayfalama ihtiyacı
- * doğduğunda hazır bir başlangıç noktası olarak kullanılabilir.
+ * İstemci tarafı sayfalama. Şube ve kullanıcı listeleri birkaç yüz kayıtla
+ * sınırlı olduğu için tüm veri tek istekte gelir; burada yalnızca kaç satırın
+ * DOM'a çizileceği sınırlanır. Liste binlere çıkarsa sunucu taraflı sayfalamaya
+ * geçilmeli.
+ *
+ * Filtre değişince sayfa numarasını çağıran taraf setPage(1) ile sıfırlar;
+ * hook ayrıca sayfa sayısı düşerse mevcut sayfayı sınır içine çeker.
  */
 export function usePagination<T>(items: T[], pageSize: number) {
   const [page, setPage] = useState(1)

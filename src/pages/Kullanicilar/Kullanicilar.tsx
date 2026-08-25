@@ -15,6 +15,10 @@ import { subelerApi } from '@/services/subeService'
 import type { Birim } from '@/types/birim'
 import type { Sube } from '@/types/sube'
 import { Loading } from '@/components/common/Loading'
+import { usePagination } from '@/hooks/usePagination'
+import { Pagination } from '@/components/common/Pagination'
+
+const SAYFA_BOYUTU = 20
 
 export function KullanicilarPage() {
   const [users, setUsers] = useState<User[]>([])
@@ -121,6 +125,13 @@ export function KullanicilarPage() {
     u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase())
   )
 
+  const { page, totalPages, pageItems, nextPage, prevPage, setPage } = usePagination(filtered, SAYFA_BOYUTU)
+
+  const handleSearch = (deger: string) => {
+    setSearch(deger)
+    setPage(1)
+  }
+
   const columns: DataTableColumn<User>[] = [
     {
       header: 'Kullanıcı',
@@ -171,12 +182,16 @@ export function KullanicilarPage() {
 
       <Card>
         <div className="p-4 border-b border-gray-50">
-          <SearchBar placeholder="Kullanıcı ara..." value={search} onChange={setSearch} />
+          <SearchBar placeholder="Kullanıcı ara..." value={search} onChange={handleSearch} />
         </div>
         {loading ? (
           <Loading />
         ) : (
-          <DataTable columns={columns} data={filtered} keyExtractor={u => u.id} />
+          <>
+            <DataTable columns={columns} data={pageItems} keyExtractor={u => u.id} />
+            <Pagination page={page} totalPages={totalPages} toplam={filtered.length} pageSize={SAYFA_BOYUTU}
+              onPrev={prevPage} onNext={nextPage} onPage={setPage} birim="kullanıcı" />
+          </>
         )}
       </Card>
 
