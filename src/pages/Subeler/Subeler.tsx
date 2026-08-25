@@ -6,6 +6,8 @@ import {
 import { subelerApi } from '@/services/subeService'
 import type { Sube as ApiSube, PuanOzeti } from '@/types/sube'
 import { useModal } from '@/hooks/useModal'
+import { usePagination } from '@/hooks/usePagination'
+import { Pagination } from '@/components/common/Pagination'
 import { statusConfig } from '@/utils/constants'
 import { PageHeader } from '@/components/common/PageHeader'
 import { Card } from '@/components/common/Card'
@@ -14,6 +16,8 @@ import { SearchBar } from '@/components/common/SearchBar'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { Modal, ConfirmModal } from '@/components/common/Modal'
 import { SubeFormFields } from '@/components/forms/SubeForm'
+
+const SAYFA_BOYUTU = 20
 
 export function SubelerPage() {
   const [search, setSearch] = useState('')
@@ -109,6 +113,13 @@ export function SubelerPage() {
     return arr
   })()
 
+  const { page, totalPages, pageItems, nextPage, prevPage, setPage } = usePagination(filtered, SAYFA_BOYUTU)
+
+  const handleSearch = (deger: string) => {
+    setSearch(deger)
+    setPage(1)
+  }
+
   const exportToExcel = () => {
     const bom = '﻿'
     const headers = ['Şube Adı', 'Toplam Üye Sayısı', 'Durum']
@@ -188,17 +199,19 @@ export function SubelerPage() {
     })
   }
 
-  const allFilteredSelected = filtered.length > 0 && filtered.every(s => selectedIds.has(s.id))
+  // Başlıktaki onay kutusu yalnızca görünen sayfayı kapsar. Toplu silme yıkıcı
+  // bir işlem olduğu için, kullanıcının o an göremediği yüzlerce satırı da
+  // seçmesi beklenmedik sonuç doğurur.
+  const allPageSelected = pageItems.length > 0 && pageItems.every(s => selectedIds.has(s.id))
 
   const toggleSelectAll = () => {
     setSelectedIds(prev => {
-      if (allFilteredSelected) {
-        const next = new Set(prev)
-        filtered.forEach(s => next.delete(s.id))
-        return next
-      }
       const next = new Set(prev)
-      filtered.forEach(s => next.add(s.id))
+      if (allPageSelected) {
+        pageItems.forEach(s => next.delete(s.id))
+      } else {
+        pageItems.forEach(s => next.add(s.id))
+      }
       return next
     })
   }
@@ -307,7 +320,7 @@ export function SubelerPage() {
               <Btn variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Seçimi Temizle</Btn>
             </div>
           ) : (
-            <SearchBar placeholder="Şube ara..." value={search} onChange={setSearch} />
+            <SearchBar placeholder="Şube ara..." value={search} onChange={handleSearch} />
           )}
           <span className="text-xs text-gray-400">{filtered.length} şube listeleniyor</span>
         </div>
@@ -317,7 +330,8 @@ export function SubelerPage() {
               <tr className="border-b border-gray-50">
                 <th className="px-4 py-3 w-10">
                   <input type="checkbox" className="rounded border-gray-300"
-                    checked={allFilteredSelected} onChange={toggleSelectAll} />
+                    title="Bu sayfadaki şubeleri seç"
+                    checked={allPageSelected} onChange={toggleSelectAll} />
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide select-none cursor-pointer hover:text-gray-600"
                   onClick={() => toggleSort('name')}>
@@ -356,7 +370,7 @@ export function SubelerPage() {
                 <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-400">
                   {search ? 'Arama sonucu bulunamadı' : 'Henüz şube eklenmedi'}
                 </td></tr>
-              ) : filtered.map(s => (
+              ) : pageItems.map(s => (
                 <tr key={s.id} className={`border-b border-gray-50 hover:bg-gray-50/60 group ${selectedIds.has(s.id) ? 'bg-emerald-50/40' : ''}`}>
                   <td className="px-4 py-4">
                     <input type="checkbox" className="rounded border-gray-300"
@@ -404,6 +418,8 @@ export function SubelerPage() {
             </tbody>
           </table>
         </div>
+        <Pagination page={page} totalPages={totalPages} toplam={filtered.length} pageSize={SAYFA_BOYUTU}
+          onPrev={prevPage} onNext={nextPage} onPage={setPage} birim="şube" />
       </Card>
 
       {deleteTarget && (
