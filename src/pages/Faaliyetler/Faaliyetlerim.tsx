@@ -88,6 +88,21 @@ export function FaaliyetlerimPage() {
 
   const activeDonem = activeDonemler.find(d => d.id === selectedDonemId) ?? null
 
+  // Şube tüm birimlere aynı hesapla kayıt girer (Teşkilatlanma, GENÇ MÜSİAD...).
+  // Dönemleri birime göre grupluyoruz ki hangi birime çalışıldığı görünür olsun.
+  const birimGruplari = activeDonemler.reduce<{ birimId: number; birimAdi: string; donemler: ApiDonem[] }[]>((gruplar, d) => {
+    const mevcut = gruplar.find(g => g.birimId === d.birim_id)
+    if (mevcut) {
+      mevcut.donemler.push(d)
+    } else {
+      gruplar.push({ birimId: d.birim_id, birimAdi: d.birim?.name ?? 'Birim', donemler: [d] })
+    }
+    return gruplar
+  }, [])
+
+  const aktifGrup = birimGruplari.find(g => g.donemler.some(d => d.id === selectedDonemId)) ?? null
+  const cokBirimliMi = birimGruplari.length > 1
+
   const acikAy = (aylar ?? []).find(a => a.acik)
   const kayitlarByFaaliyet = (faaliyetId: number) => kayitlar.filter(k => k.faaliyet_id === faaliyetId)
 
@@ -154,18 +169,42 @@ export function FaaliyetlerimPage() {
   return (
     <div className="animate-fade-in">
       <PageHeader title="Faaliyetlerim"
-        subtitle={activeDonem ? `${activeDonem.name}${acikAy ? ` · ${acikAy.name} için giriş açık` : ' · Açık değerlendirme ayı yok'}` : 'Aktif dönem yok'} />
+        subtitle={activeDonem
+          ? `${activeDonem.birim?.name ? `${activeDonem.birim.name} · ` : ''}${activeDonem.name}${acikAy ? ` · ${acikAy.name} için giriş açık` : ' · Açık değerlendirme ayı yok'}`
+          : 'Aktif dönem yok'} />
 
       {apiError && (
         <div className="mb-4 px-4 py-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-600">{apiError}</div>
       )}
 
-      {activeDonemler.length > 1 && (
+      {cokBirimliMi && (
+        <div className="mb-4">
+          <div className="flex items-center gap-1 p-1 rounded-xl bg-gray-100 w-fit max-w-full overflow-x-auto">
+            {birimGruplari.map(g => {
+              const secili = aktifGrup?.birimId === g.birimId
+              return (
+                <button key={g.birimId} onClick={() => handleDonemChange(g.donemler[0].id)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                    secili ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                  }`}>
+                  {g.birimAdi}
+                </button>
+              )
+            })}
+          </div>
+          <p className="text-xs text-gray-400 mt-2">
+            Şubeniz her birime ayrı kayıt girer. Sekmeler arasında geçiş yaparak o birimin faaliyetlerini görebilirsiniz.
+          </p>
+        </div>
+      )}
+
+      {/* Bir birimde birden fazla aktif dönem olması beklenmez ama olursa seçilebilsin. */}
+      {(aktifGrup?.donemler.length ?? 0) > 1 && (
         <div className="mb-4 w-64">
           <FormField label="Dönem">
             <select className={inputCls} value={selectedDonemId ?? ''}
               onChange={e => handleDonemChange(e.target.value ? Number(e.target.value) : null)}>
-              {activeDonemler.map(d => (
+              {aktifGrup?.donemler.map(d => (
                 <option key={d.id} value={d.id}>{d.name}</option>
               ))}
             </select>
