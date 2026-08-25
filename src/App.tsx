@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, lazy, Suspense } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissions } from '@/hooks/usePermissions'
 import type { Page } from '@/types/navigation'
 import { pageLabels } from '@/utils/constants'
 import { PlaceholderPage } from '@/components/common/PlaceholderPage'
+import { Loading } from '@/components/common/Loading'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { TopHeader } from '@/components/layout/Header'
 import { LoginPage } from '@/pages/Login/Login'
@@ -16,7 +17,13 @@ import { SubelerPage } from '@/pages/Subeler/Subeler'
 import { FaaliyetlerPage } from '@/pages/Faaliyetler/Faaliyetler'
 import { FaaliyetlerimPage } from '@/pages/Faaliyetler/Faaliyetlerim'
 import { DonemlerPage } from '@/pages/Donemler/Donemler'
-import { RaporlarPage } from '@/pages/Raporlar/Raporlar'
+
+// Raporlar sayfası grafik kütüphanesini (recharts) çeker; bu tek bağımlılık
+// paketin yarısına yakınını kaplıyor ve yalnızca bu sayfada kullanılıyor.
+// Gecikmeli yükleyerek ilk açılıştan çıkarıyoruz.
+const RaporlarPage = lazy(() =>
+  import('@/pages/Raporlar/Raporlar').then(m => ({ default: m.RaporlarPage })),
+)
 
 // ─── App Shell ─────────────────────────────────────────────────────────────────
 
@@ -82,7 +89,10 @@ export default function App() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopHeader onToggleSidebar={() => setSidebarCollapsed(p => !p)} currentPageLabel={pageLabels[page] || ''} user={currentUser} />
         <main className="flex-1 overflow-y-auto p-6 bg-gray-50">
-          {renderPage()}
+          {/* Gecikmeli yüklenen sayfalar (Raporlar) indirilirken yükleniyor göstergesi */}
+          <Suspense fallback={<Loading />}>
+            {renderPage()}
+          </Suspense>
         </main>
       </div>
     </div>
