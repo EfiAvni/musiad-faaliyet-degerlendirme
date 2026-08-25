@@ -2,7 +2,12 @@ import type { Role } from '@/types/auth'
 import type { PeriyotTipi } from '@/types/donem'
 import type { RaporTab } from '@/types/rapor'
 
-export const MUSIAD_LOGO_URL = 'https://upload.wikimedia.org/wikipedia/tr/thumb/4/4f/Musiad_Logo.png/960px-Musiad_Logo.png?_=20230216124853'
+// Logo projeye dahildir; daha önce Wikipedia'dan doğrudan çekiliyordu ve o
+// bağlantı koptuğunda her sayfada kırık görünüyordu. Vite dosyayı derlemeye
+// katıp adına içerik özeti ekler, böylece önbellek de doğru tazelenir.
+import musiadLogo from '@/assets/musiad-logo.png'
+
+export const MUSIAD_LOGO_URL = musiadLogo
 
 export const roleLabels: Record<Role, string> = {
   superadmin: 'Süper Admin', birim_yoneticisi: 'Birim Yöneticisi', sube_yoneticisi: 'Şube Yöneticisi',
