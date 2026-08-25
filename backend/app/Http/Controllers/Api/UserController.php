@@ -78,10 +78,12 @@ class UserController extends Controller
             ]);
         }
 
-        if (empty($data['password'])) {
-            unset($data['password']);
-        } else {
+        $parolaDegisti = !empty($data['password']);
+
+        if ($parolaDegisti) {
             $data['password'] = Hash::make($data['password']);
+        } else {
+            unset($data['password']);
         }
 
         $data['role'] = $rol;
@@ -90,7 +92,36 @@ class UserController extends Controller
 
         $user->update($this->kapsamiRoleGoreTemizle($data));
 
+        if ($parolaDegisti) {
+            $this->oturumlariKapat($user, $request);
+        }
+
         return response()->json(new UserResource($user->fresh()));
+    }
+
+    /**
+     * Parola değişince kullanıcının açık oturumları da kapanmalı - aksi halde
+     * sıfırlama, ele geçirilmiş bir oturumu geçersiz kılmaz.
+     *
+     * İşlemi yapan kişi kendi parolasını değiştiriyorsa o anki jetonu ayakta
+     * bırakılır; aksi halde admin kendini uygulamadan atmış olur.
+     */
+    private function oturumlariKapat(User $user, Request $request): void
+    {
+        $query = $user->tokens();
+
+        if ($request->user()->is($user)) {
+            // currentAccessToken() her zaman kalıcı bir jeton olmayabilir
+            // (ör. test ortamındaki TransientToken); anahtarı yoksa hariç
+            // tutacak bir şey de yok demektir.
+            $mevcutJetonId = $request->user()->currentAccessToken()?->getKey();
+
+            if ($mevcutJetonId !== null) {
+                $query->whereKeyNot($mevcutJetonId);
+            }
+        }
+
+        $query->delete();
     }
 
     public function destroy(Request $request, User $user): JsonResponse

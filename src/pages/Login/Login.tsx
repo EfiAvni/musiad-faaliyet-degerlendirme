@@ -84,10 +84,7 @@ export function LoginPage({ onLogin }: { onLogin: (user: User) => void }) {
                 style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }} />
             </FormField>
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-medium text-gray-600">Parola</label>
-                <span className="text-xs text-emerald-700 cursor-pointer font-medium hover:text-emerald-800">Parolamı unuttum</span>
-              </div>
+              <label className="block text-xs font-medium text-gray-600 mb-2">Parola</label>
               <input type="password" value={password} onChange={e => setPassword(e.target.value)}
                 placeholder="••••••••••••"
                 className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-emerald-500 focus:ring-3 focus:ring-emerald-100 transition-all"
@@ -110,8 +107,11 @@ export function LoginPage({ onLogin }: { onLogin: (user: User) => void }) {
             </button>
           </form>
 
-          <p className="text-xs text-gray-400 text-center mt-6">
-            Hesabınız yoksa birim yöneticinizle iletişime geçin.
+          {/* Parola sıfırlama yönetici panelinden yapılıyor; kendi kendine
+              sıfırlama akışı yok, bu yüzden kullanıcıyı doğru yere yönlendiriyoruz. */}
+          <p className="text-xs text-gray-400 text-center mt-6 leading-relaxed">
+            Parolanızı unuttuysanız veya hesabınız yoksa
+            <br />sistem yöneticinizle iletişime geçin.
           </p>
         </div>
       </div>

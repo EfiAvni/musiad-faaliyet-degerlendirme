@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Plus, Edit2, Trash2 } from 'lucide-react'
+import { Plus, Edit2, Trash2, KeyRound } from 'lucide-react'
 import type { User } from '@/types/auth'
-import { roleColor } from '@/utils/constants'
+import { roleColor, inputCls } from '@/utils/constants'
+import { FormField } from '@/components/common/FormField'
 import { PageHeader } from '@/components/common/PageHeader'
 import { Card } from '@/components/common/Card'
 import { Btn } from '@/components/common/Btn'
@@ -25,6 +26,14 @@ export function KullanicilarPage() {
 
   const [formData, setFormData] = useState<KullaniciFormState>({ name: '', email: '', role: 'superadmin', password: '' })
   const [saving, setSaving] = useState(false)
+
+  // Parola sıfırlama ayrı bir akış: yönetici rol/birim alanlarına dokunmadan
+  // yalnızca yeni parolayı girer.
+  const [parolaTarget, setParolaTarget] = useState<User | null>(null)
+  const [yeniParola, setYeniParola] = useState('')
+  const [parolaSaving, setParolaSaving] = useState(false)
+  const [parolaError, setParolaError] = useState('')
+  const [parolaBasarili, setParolaBasarili] = useState('')
 
   const [birimler, setBirimler] = useState<Birim[]>([])
   const [subeler, setSubeler] = useState<Sube[]>([])
@@ -85,6 +94,30 @@ export function KullanicilarPage() {
       setUsers(users.filter(x => x.id !== u.id))
     } catch (err: any) {
       alert('Silinemedi: ' + (err.message || 'Bilinmeyen hata'))
+    }
+  }
+
+  const openParolaSifirla = (u: User) => {
+    setParolaTarget(u)
+    setYeniParola('')
+    setParolaError('')
+    setParolaBasarili('')
+  }
+
+  const handleParolaSifirla = async () => {
+    if (!parolaTarget) return
+    if (yeniParola.length < 8) { setParolaError('Parola en az 8 karakter olmalıdır.'); return }
+
+    setParolaSaving(true)
+    setParolaError('')
+    try {
+      await kullanicilarApi.update(parolaTarget.id, { password: yeniParola })
+      setParolaBasarili(`${parolaTarget.name} için yeni parola belirlendi. Kullanıcının açık oturumları kapatıldı.`)
+      setYeniParola('')
+    } catch (err: any) {
+      setParolaError(err?.errors?.password?.[0] ?? err?.message ?? 'Parola değiştirilemedi.')
+    } finally {
+      setParolaSaving(false)
     }
   }
 
@@ -154,6 +187,8 @@ export function KullanicilarPage() {
       render: (u) => (
         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button onClick={() => handleOpenEdit(u)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400"><Edit2 size={14} /></button>
+          <button onClick={() => openParolaSifirla(u)} title="Parolayı sıfırla"
+            className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400"><KeyRound size={14} /></button>
           <button onClick={() => handleDelete(u)} className="p-1.5 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-500"><Trash2 size={14} /></button>
         </div>
       ),
@@ -190,6 +225,51 @@ export function KullanicilarPage() {
                 {saving ? 'Kaydediliyor...' : 'Kaydet'}
               </Btn>
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {parolaTarget && (
+        <Modal title="Parolayı Sıfırla" onClose={() => setParolaTarget(null)}>
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm font-medium text-gray-800">{parolaTarget.name}</p>
+              <p className="text-xs text-gray-400">{parolaTarget.email}</p>
+            </div>
+
+            {parolaBasarili ? (
+              <>
+                <div className="px-4 py-3 bg-emerald-50 border border-emerald-100 rounded-xl text-sm text-emerald-700">
+                  {parolaBasarili}
+                </div>
+                <p className="text-xs text-gray-400">
+                  Yeni parolayı kullanıcıya kendiniz iletmelisiniz — sistem e-posta göndermiyor.
+                </p>
+                <div className="flex items-center justify-end pt-2">
+                  <Btn variant="primary" onClick={() => setParolaTarget(null)}>Kapat</Btn>
+                </div>
+              </>
+            ) : (
+              <>
+                <FormField label="Yeni Parola">
+                  <input type="text" className={inputCls} placeholder="En az 8 karakter"
+                    value={yeniParola} onChange={e => setYeniParola(e.target.value)} autoFocus />
+                  <p className="text-xs text-gray-400 mt-1.5">
+                    Parolayı kullanıcıya iletebilmeniz için açık gösteriliyor. Kaydedince kullanıcının
+                    açık oturumları kapanır.
+                  </p>
+                </FormField>
+
+                {parolaError && <p className="text-xs text-red-500">{parolaError}</p>}
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <Btn variant="secondary" onClick={() => setParolaTarget(null)}>İptal</Btn>
+                  <Btn variant="primary" onClick={handleParolaSifirla} disabled={parolaSaving || yeniParola.length < 8}>
+                    {parolaSaving ? 'Kaydediliyor...' : 'Parolayı Değiştir'}
+                  </Btn>
+                </div>
+              </>
+            )}
           </div>
         </Modal>
       )}

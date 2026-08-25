@@ -174,6 +174,46 @@ class UserYonetimiTest extends TestCase
             ->assertStatus(401);
     }
 
+    public function test_parola_sifirlaninca_kullanicinin_oturumlari_kapanir(): void
+    {
+        $hedef = User::factory()->create(['role' => 'superadmin', 'password' => Hash::make('eski-parola')]);
+        $hedefJeton = $hedef->createToken('telefon')->plainTextToken;
+
+        Sanctum::actingAs($this->superadmin());
+
+        $this->putJson("/api/users/{$hedef->id}", ['password' => 'yeni-guclu-parola'])->assertOk();
+
+        $this->assertSame(0, $hedef->tokens()->count());
+        $this->assertTrue(Hash::check('yeni-guclu-parola', $hedef->fresh()->password));
+
+        $this->app['auth']->forgetGuards();
+        $this->withHeader('Authorization', "Bearer {$hedefJeton}")
+            ->getJson('/api/auth/me')
+            ->assertStatus(401);
+    }
+
+    public function test_kendi_parolasini_degistiren_admin_oturumda_kalir(): void
+    {
+        $admin = User::factory()->create(['role' => 'superadmin', 'password' => Hash::make('eski-parola')]);
+        $baskaCihaz = $admin->createToken('eski-cihaz')->plainTextToken;
+
+        // Sanctum::actingAs kalıcı olmayan bir jeton üretir; "işlemi yapan
+        // oturum ayakta kalsın" kuralı gerçek bir Bearer jetonuyla sınanmalı.
+        $buCihaz = $admin->createToken('bu-cihaz')->plainTextToken;
+
+        $this->withHeader('Authorization', "Bearer {$buCihaz}")
+            ->putJson("/api/users/{$admin->id}", ['password' => 'yeni-guclu-parola'])
+            ->assertOk();
+
+        // Diğer cihazlar düşer, işlemi yapan oturum ayakta kalır.
+        $this->assertSame(1, $admin->tokens()->count());
+
+        $this->app['auth']->forgetGuards();
+        $this->withHeader('Authorization', "Bearer {$baskaCihaz}")
+            ->getJson('/api/auth/me')
+            ->assertStatus(401);
+    }
+
     public function test_parola_degistirmeden_guncelleme_parolayi_bozmaz(): void
     {
         Sanctum::actingAs($this->superadmin());
