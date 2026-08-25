@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Calendar, FileCheck, Edit2, Trash2, Plus } from 'lucide-react'
+import { Calendar, FileCheck, Edit2, Trash2, Plus, Send } from 'lucide-react'
+import { gonderimlerApi } from '@/services/gonderimService'
+import type { Gonderim, GonderimDurum } from '@/types/gonderim'
+import { GONDERIM_DURUM_ETIKET, GONDERIM_DURUM_RENK } from '@/types/gonderim'
 import { donemlerApi } from '@/services/donemService'
 import type { Donem as ApiDonem } from '@/types/donem'
 import { faaliyetlerApi } from '@/services/faaliyetService'
@@ -35,16 +38,23 @@ export function FaaliyetlerimPage() {
 
   const { target: deleteTarget, setTarget: setDeleteTarget, loading: deleting, setLoading: setDeleting } = useModal<ApiFaaliyetKayit>()
 
+  const [gonderimler, setGonderimler] = useState<Gonderim[]>([])
+  const [gonderiliyor, setGonderiliyor] = useState(false)
+  const [gonderimHata, setGonderimHata] = useState('')
+  const [gonderOnayi, setGonderOnayi] = useState(false)
+
   const loadDonemData = async (donemId: number) => {
     try {
-      const [full, faaliyetData, kayitData] = await Promise.all([
+      const [full, faaliyetData, kayitData, gonderimData] = await Promise.all([
         donemlerApi.show(donemId),
         faaliyetlerApi.list(donemId),
         faaliyetKayitlariApi.list(),
+        gonderimlerApi.list({ donem_id: donemId }),
       ])
       setAylar(full.aylar ?? [])
       setFaaliyetler(faaliyetData)
       setKayitlar(kayitData)
+      setGonderimler(gonderimData)
       setApiError('')
     } catch {
       setApiError('Veriler yüklenemedi. Backend bağlantısını kontrol edin.')
@@ -105,6 +115,32 @@ export function FaaliyetlerimPage() {
 
   const acikAy = (aylar ?? []).find(a => a.acik)
   const kayitlarByFaaliyet = (faaliyetId: number) => kayitlar.filter(k => k.faaliyet_id === faaliyetId)
+
+  // Gönderim kaydı olmayan ay taslaktır - backend o ay için satır tutmuyor.
+  const acikAyGonderimi = acikAy ? gonderimler.find(g => g.donem_ay_id === acikAy.id) ?? null : null
+  const gonderimDurumu: GonderimDurum = acikAyGonderimi?.durum ?? 'taslak'
+  const subeDuzenleyebilir = gonderimDurumu === 'taslak' || gonderimDurumu === 'duzeltme_bekliyor'
+  const acikAyKayitSayisi = acikAy ? kayitlar.filter(k => k.donem_ay_id === acikAy.id).length : 0
+  const gonderilebilir = Boolean(acikAy) && subeDuzenleyebilir && acikAyKayitSayisi > 0
+
+  const handleGonder = async () => {
+    if (!acikAy) return
+    setGonderiliyor(true)
+    setGonderimHata('')
+    try {
+      await gonderimlerApi.gonder(acikAy.id)
+      await loadAll()
+      setGonderOnayi(false)
+    } catch (e: any) {
+      setGonderimHata(
+        e?.errors?.donem_ay_id?.[0] ?? e?.errors?.durum?.[0] ?? e?.errors?.sube_id?.[0]
+        ?? e?.message ?? 'Gönderim sırasında hata oluştu.',
+      )
+      setGonderOnayi(false)
+    } finally {
+      setGonderiliyor(false)
+    }
+  }
 
   const openCreate = (f: ApiFaaliyet) => {
     setKayitModal({ mode: 'create', faaliyet: f })
@@ -218,6 +254,54 @@ export function FaaliyetlerimPage() {
         </div>
       )}
 
+      {/* Ayın merkeze gönderim durumu ve gönderme eylemi (doküman bölüm 12) */}
+      {!loading && acikAy && (
+        <Card className="mb-4 p-4">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-medium text-gray-800">{acikAy.name}</span>
+                <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                  style={{
+                    background: GONDERIM_DURUM_RENK[gonderimDurumu].bg,
+                    color: GONDERIM_DURUM_RENK[gonderimDurumu].text,
+                  }}>
+                  {GONDERIM_DURUM_ETIKET[gonderimDurumu]}
+                </span>
+              </div>
+              <p className="text-xs text-gray-400 mt-1">
+                {gonderimDurumu === 'taslak' && (
+                  acikAyKayitSayisi > 0
+                    ? `${acikAyKayitSayisi} kayıt girildi. Tamamladığınızda merkeze gönderin.`
+                    : 'Henüz kayıt girmediniz. En az bir kayıt ekledikten sonra gönderebilirsiniz.'
+                )}
+                {gonderimDurumu === 'gonderildi' && 'Merkez incelemesi bekleniyor. İnceleme bitene kadar kayıt değiştiremezsiniz.'}
+                {gonderimDurumu === 'duzeltme_bekliyor' && 'Merkez düzeltme istedi. Gerekli değişikliği yapıp tekrar gönderin.'}
+                {gonderimDurumu === 'onaylandi' && 'Merkez bu ayı onayladı. Kayıtlar kilitlendi.'}
+              </p>
+            </div>
+
+            {gonderimDurumu !== 'onaylandi' && gonderimDurumu !== 'gonderildi' && (
+              <Btn variant="primary" onClick={() => { setGonderimHata(''); setGonderOnayi(true) }}
+                disabled={!gonderilebilir || gonderiliyor}>
+                <Send size={13} />
+                {gonderimDurumu === 'duzeltme_bekliyor' ? 'Tekrar Gönder' : 'Merkeze Gönder'}
+              </Btn>
+            )}
+          </div>
+
+          {acikAyGonderimi?.merkez_notu && (
+            <div className="mt-3 px-3 py-2.5 rounded-xl text-sm"
+              style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e' }}>
+              <span className="text-xs font-semibold uppercase tracking-wide block mb-1">Merkez notu</span>
+              {acikAyGonderimi.merkez_notu}
+            </div>
+          )}
+
+          {gonderimHata && <p className="text-xs text-red-500 mt-3">{gonderimHata}</p>}
+        </Card>
+      )}
+
       {loading ? (
         <Loading />
       ) : !activeDonem ? (
@@ -252,7 +336,7 @@ export function FaaliyetlerimPage() {
                         <p className="text-sm text-gray-800 font-medium">{k.deger}</p>
                         {k.aciklama && <p className="text-xs text-gray-500 mt-0.5">{k.aciklama}</p>}
                       </div>
-                      {k.donem_ay?.acik && (
+                      {k.donem_ay?.acik && subeDuzenleyebilir && (
                         <div className="flex gap-1 flex-shrink-0">
                           <button className="p-1 hover:bg-gray-200 rounded-lg text-gray-400" onClick={() => openEdit(f, k)}>
                             <Edit2 size={12} />
@@ -266,7 +350,7 @@ export function FaaliyetlerimPage() {
                   ))}
                 </div>
 
-                <Btn variant="secondary" size="sm" onClick={() => openCreate(f)} disabled={!acikAy}>
+                <Btn variant="secondary" size="sm" onClick={() => openCreate(f)} disabled={!acikAy || !subeDuzenleyebilir}>
                   <Plus size={13} />Kayıt Ekle
                 </Btn>
               </Card>
@@ -324,6 +408,18 @@ export function FaaliyetlerimPage() {
           onCancel={() => setDeleteTarget(null)}
           onConfirm={handleDelete}
           loading={deleting}
+        />
+      )}
+
+      {gonderOnayi && acikAy && (
+        <ConfirmModal
+          title="Merkeze Gönder"
+          message={`${acikAy.name} ayına girdiğiniz ${acikAyKayitSayisi} kayıt merkeze gönderilecek. Gönderdikten sonra merkez inceleyene kadar kayıt ekleyemez veya değiştiremezsiniz.`}
+          confirmLabel="Gönder"
+          variant="primary"
+          onCancel={() => setGonderOnayi(false)}
+          onConfirm={handleGonder}
+          loading={gonderiliyor}
         />
       )}
     </div>
