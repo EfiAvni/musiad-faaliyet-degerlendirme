@@ -15,7 +15,7 @@ import { Modal, ConfirmModal } from '@/components/common/Modal'
 import { Loading } from '@/components/common/Loading'
 import { EmptyState } from '@/components/common/EmptyState'
 import { FaaliyetFormFields } from '@/components/forms/FaaliyetForm'
-import type { Kademe, KriterTuru } from '@/types/faaliyet'
+import type { Kademe, KriterKategori, KriterTuru } from '@/types/faaliyet'
 import { FaaliyetCard } from './FaaliyetCard'
 
 export function FaaliyetlerPage({ initialDonemId }: { initialDonemId: number | null }) {
@@ -35,6 +35,7 @@ export function FaaliyetlerPage({ initialDonemId }: { initialDonemId: number | n
   const [formTarihGerekli, setFormTarihGerekli] = useState(false)
   const [formKriterTuru, setFormKriterTuru] = useState<KriterTuru>('sayi')
   const [formKademeler, setFormKademeler] = useState<Kademe[]>([])
+  const [formKategori, setFormKategori] = useState<KriterKategori | ''>('')
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
 
@@ -48,6 +49,7 @@ export function FaaliyetlerPage({ initialDonemId }: { initialDonemId: number | n
   const [editTarihGerekli, setEditTarihGerekli] = useState(false)
   const [editKriterTuru, setEditKriterTuru] = useState<KriterTuru>('sayi')
   const [editKademeler, setEditKademeler] = useState<Kademe[]>([])
+  const [editKategori, setEditKategori] = useState<KriterKategori | ''>('')
   const [editDonemId, setEditDonemId] = useState<number | ''>('')
   const [editDurum, setEditDurum] = useState<'active' | 'completed' | 'passive'>('active')
   const [editSaving, setEditSaving] = useState(false)
@@ -102,6 +104,7 @@ export function FaaliyetlerPage({ initialDonemId }: { initialDonemId: number | n
     if (!canCreate) return
     setFormTitle(''); setFormDetay(''); setFormPuan(''); setFormHedef('')
     setFormAciklama(''); setFormTarihGerekli(false)
+    setFormKriterTuru('sayi'); setFormKademeler([]); setFormKategori('')
     setFormError('')
     setShowModal(true)
   }
@@ -120,6 +123,7 @@ export function FaaliyetlerPage({ initialDonemId }: { initialDonemId: number | n
         donem_id: donemFilter,
         kriter_turu: formKriterTuru,
         kademeler: formKriterTuru === 'kademeli' ? formKademeler : null,
+        kategori: formKategori || null,
       })
       await loadFaaliyetler(donemFilter)
       setShowModal(false)
@@ -140,6 +144,7 @@ export function FaaliyetlerPage({ initialDonemId }: { initialDonemId: number | n
     setEditTarihGerekli(f.tarih_gerekli)
     setEditKriterTuru(f.kriter_turu ?? 'sayi')
     setEditKademeler(f.kademeler ?? [])
+    setEditKategori(f.kategori ?? '')
     setEditDonemId(f.donem_id)
     setEditDurum(f.durum)
     setEditError('')
@@ -163,6 +168,7 @@ export function FaaliyetlerPage({ initialDonemId }: { initialDonemId: number | n
         durum: editDurum,
         kriter_turu: editKriterTuru,
         kademeler: editKriterTuru === 'kademeli' ? editKademeler : null,
+        kategori: editKategori || null,
       })
       await loadFaaliyetler(donemFilter)
       closeEditModal()
@@ -268,6 +274,7 @@ export function FaaliyetlerPage({ initialDonemId }: { initialDonemId: number | n
             tarihGerekli={formTarihGerekli} setTarihGerekli={setFormTarihGerekli}
             kriterTuru={formKriterTuru} setKriterTuru={setFormKriterTuru}
             kademeler={formKademeler} setKademeler={setFormKademeler}
+            kategori={formKategori} setKategori={setFormKategori}
           />
           {formError && <p className="text-xs text-red-500 mt-3">{formError}</p>}
           <div className="flex items-center justify-end gap-2 pt-4">
@@ -290,6 +297,7 @@ export function FaaliyetlerPage({ initialDonemId }: { initialDonemId: number | n
             tarihGerekli={editTarihGerekli} setTarihGerekli={setEditTarihGerekli}
             kriterTuru={editKriterTuru} setKriterTuru={setEditKriterTuru}
             kademeler={editKademeler} setKademeler={setEditKademeler}
+            kategori={editKategori} setKategori={setEditKategori}
             donemId={editDonemId} setDonemId={setEditDonemId}
             donemOptions={selectableDonemler}
             durum={editDurum} setDurum={setEditDurum}

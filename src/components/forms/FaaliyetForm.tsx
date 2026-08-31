@@ -2,12 +2,13 @@ import { Trash2 } from 'lucide-react'
 import { FormField } from '@/components/common/FormField'
 import { inputCls } from '@/utils/constants'
 import type { Donem as ApiDonem } from '@/types/donem'
-import type { Kademe, KriterTuru } from '@/types/faaliyet'
-import { KRITER_TURU_ACIKLAMA, KRITER_TURU_ETIKET } from '@/types/faaliyet'
+import type { Kademe, KriterKategori, KriterTuru } from '@/types/faaliyet'
+import { KATEGORI_ETIKET, KRITER_TURU_ACIKLAMA, KRITER_TURU_ETIKET, SECILEBILIR_KATEGORILER } from '@/types/faaliyet'
 
 export function FaaliyetFormFields({ title, setTitle, detay, setDetay, puan, setPuan, hedef, setHedef,
   aciklama, setAciklama, tarihGerekli, setTarihGerekli, donemId, setDonemId, donemOptions, durum, setDurum,
   kriterTuru = 'sayi', setKriterTuru = () => {}, kademeler = [], setKademeler,
+  kategori = '', setKategori,
 }: {
   title: string; setTitle: (v: string) => void
   detay: string; setDetay: (v: string) => void
@@ -20,6 +21,7 @@ export function FaaliyetFormFields({ title, setTitle, detay, setDetay, puan, set
   durum?: 'active' | 'completed' | 'passive'; setDurum?: (v: 'active' | 'completed' | 'passive') => void
   kriterTuru?: KriterTuru; setKriterTuru?: (v: KriterTuru) => void
   kademeler?: Kademe[]; setKademeler?: (v: Kademe[]) => void
+  kategori?: KriterKategori | ''; setKategori?: (v: KriterKategori | '') => void
 }) {
   // Hedef yalnızca adet ya da oran hedefi olan türlerde anlamlı.
   const hedefGorunur = kriterTuru === 'sayi' || kriterTuru === 'oran'
@@ -46,6 +48,22 @@ export function FaaliyetFormFields({ title, setTitle, detay, setDetay, puan, set
         </select>
         <p className="text-xs text-gray-400 mt-1.5">{KRITER_TURU_ACIKLAMA[kriterTuru]}</p>
       </FormField>
+
+      {setKategori && (
+        <FormField label="Kriter Başlığı">
+          <select className={inputCls} value={kategori}
+            onChange={e => setKategori(e.target.value as KriterKategori | '')}>
+            <option value="">Seçilmedi</option>
+            {SECILEBILIR_KATEGORILER.map(k => (
+              <option key={k} value={k}>{KATEGORI_ETIKET[k]}</option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-400 mt-1.5">
+            Raporda şubenin hangi konuda güçlü, hangi konuda eksik olduğunu bu başlıklar belirler.
+            Seçmezseniz faaliyet "Sınıflandırılmamış" altında toplanır.
+          </p>
+        </FormField>
+      )}
 
       <div className={hedefGorunur ? 'grid grid-cols-2 gap-3' : ''}>
         <FormField label={kriterTuru === 'manuel' ? 'En Yüksek Puan' : 'Puan'}>

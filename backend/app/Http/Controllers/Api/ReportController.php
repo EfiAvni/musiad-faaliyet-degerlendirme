@@ -9,6 +9,8 @@ use App\Models\FaaliyetDegerlendirme;
 use App\Models\FaaliyetKayit;
 use App\Models\Sube;
 use App\Support\BirimKapsami;
+use App\Support\DonemPuanlama;
+use App\Support\KriterKategorileri;
 use App\Support\PuanHesaplayici;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
@@ -86,6 +88,26 @@ class ReportController extends Controller
         }
 
         return $harita;
+    }
+
+    /** Dönem genelinde kategori bazlı performans - tüm şubelerin toplamı. */
+    private function kategoriBazli(Donem $donem, $subeler): array
+    {
+        $puanlama = new DonemPuanlama($donem);
+        $toplamlar = [];
+
+        foreach ($subeler as $sube) {
+            foreach ($puanlama->kategoriKirilimi($sube) as $k) {
+                $anahtar = $k['kategori'];
+                if (!isset($toplamlar[$anahtar])) {
+                    $toplamlar[$anahtar] = ['puan' => 0, 'max_puan' => 0];
+                }
+                $toplamlar[$anahtar]['puan'] += $k['puan'];
+                $toplamlar[$anahtar]['max_puan'] += $k['max_puan'];
+            }
+        }
+
+        return KriterKategorileri::kirilim($toplamlar);
     }
 
     private function buildReport(Donem $donem): array
@@ -223,6 +245,8 @@ class ReportController extends Controller
             'faaliyet_bazli'        => $faaliyetBazli,
             'aylik_trend'           => $aylikTrend,
             'sube_faaliyet_matrisi' => $subeFaaliyetMatrisi,
+            // Doküman bölüm 7-8: hangi konuda başarılı, hangi konuda eksik.
+            'kategori_bazli'        => $this->kategoriBazli($donem, $subeler),
         ];
     }
 }

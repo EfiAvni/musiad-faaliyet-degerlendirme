@@ -34,6 +34,7 @@ export type Faaliyet = {
   durum: FaaliyetDurum
   kriter_turu: KriterTuru
   kademeler: Kademe[] | null
+  kategori: KriterKategori | null
   created_at: string
   updated_at: string
   donem?: { id: number; name: string; status: string } | null
@@ -50,4 +51,32 @@ export type FaaliyetPayload = {
   durum?: string
   kriter_turu?: KriterTuru
   kademeler?: Kademe[] | null
+  kategori?: KriterKategori | null
 }
+
+/** Doküman bölüm 7: kriterler yalnızca sayı ölçmez, şubenin farklı yönlerini ölçer. */
+export type KriterKategori =
+  | 'faaliyet_uretkenligi'
+  | 'uye_calismalari'
+  | 'teskilatlanma'
+  | 'sektorel'
+  | 'etkinlik'
+  | 'hedef_gerceklestirme'
+  | 'siniflandirilmamis'
+
+export const KATEGORI_ETIKET: Record<KriterKategori, string> = {
+  faaliyet_uretkenligi: 'Faaliyet Üretkenliği',
+  uye_calismalari:      'Üye Çalışmaları',
+  teskilatlanma:        'Teşkilatlanma',
+  sektorel:             'Sektörel Çalışmalar',
+  etkinlik:             'Etkinlik ve Organizasyon',
+  hedef_gerceklestirme: 'Hedef Gerçekleştirme',
+  siniflandirilmamis:   'Sınıflandırılmamış',
+}
+
+/**
+ * Faaliyete atanabilecek kategoriler. "Sınıflandırılmamış" listede yok: kategori
+ * seçilmemesini ifade eder, seçilebilir bir değer değil (backend de reddeder).
+ */
+export const SECILEBILIR_KATEGORILER = (Object.keys(KATEGORI_ETIKET) as KriterKategori[])
+  .filter(k => k !== 'siniflandirilmamis')
