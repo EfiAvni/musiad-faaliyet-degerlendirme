@@ -9,4 +9,5 @@ export type Page =
   | 'faaliyetler'
   | 'donemler'
   | 'faaliyetlerim'
+  | 'gonderimler'
   | 'raporlar'

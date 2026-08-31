@@ -64,5 +64,6 @@ export const pageLabels: Record<string, string> = {
   faaliyetler:   'Faaliyetler',
   donemler:      'Dönemler',
   faaliyetlerim: 'Faaliyetlerim',
+  gonderimler:   'Gönderimler',
   raporlar:      'Raporlar',
 }

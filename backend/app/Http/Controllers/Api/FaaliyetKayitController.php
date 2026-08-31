@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AyGonderim;
 use App\Models\DonemAy;
 use App\Models\Faaliyet;
 use App\Models\FaaliyetKayit;
@@ -88,6 +89,18 @@ class FaaliyetKayitController extends Controller
             ]);
         }
 
+        $mevcutGonderim = AyGonderim::where('donem_ay_id', $acikAy->id)
+            ->where('sube_id', $user->sube_id)
+            ->first();
+
+        if (!AyGonderim::subeDuzenleyebilirMiFor($mevcutGonderim)) {
+            throw ValidationException::withMessages([
+                'durum' => $mevcutGonderim->durum === AyGonderim::ONAYLANDI
+                    ? 'Bu ay merkez tarafından onaylandı, yeni kayıt eklenemez.'
+                    : 'Bu ay merkeze gönderildi ve inceleniyor, yeni kayıt eklenemez.',
+            ]);
+        }
+
         $this->assertTarihAyIcinde($acikAy, $data['tarih'] ?? null);
 
         $kayit = FaaliyetKayit::create([
@@ -115,6 +128,8 @@ class FaaliyetKayitController extends Controller
             ]);
         }
 
+        $this->assertGonderilmemis($kayit, 'düzenlenemez');
+
         $data = $request->validate([
             'tarih'    => 'nullable|date',
             'deger'    => 'sometimes|string',
@@ -141,8 +156,32 @@ class FaaliyetKayitController extends Controller
             ]);
         }
 
+        $this->assertGonderilmemis($kayit, 'silinemez');
+
         $kayit->delete();
         return response()->json(null, 204);
+    }
+
+    /**
+     * Ay merkeze gönderildikten sonra şube veriyi değiştiremez - aksi halde
+     * merkez incelerken altındaki veri kayabilir. Düzeltme istendiyse yeniden
+     * açılır (doküman bölüm 11-12).
+     */
+    private function assertGonderilmemis(FaaliyetKayit $kayit, string $eylem): void
+    {
+        $gonderim = AyGonderim::where('donem_ay_id', $kayit->donem_ay_id)
+            ->where('sube_id', $kayit->sube_id)
+            ->first();
+
+        if (AyGonderim::subeDuzenleyebilirMiFor($gonderim)) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'durum' => $gonderim->durum === AyGonderim::ONAYLANDI
+                ? "Bu ay merkez tarafından onaylandı, kayıt {$eylem}."
+                : "Bu ay merkeze gönderildi ve inceleniyor, kayıt {$eylem}. Merkez düzeltme isterse yeniden düzenleyebilirsiniz.",
+        ]);
     }
 
     private function assertTarihAyIcinde(DonemAy $ay, ?string $tarih): void

@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\BirimController;
 use App\Http\Controllers\Api\DonemController;
 use App\Http\Controllers\Api\FaaliyetController;
 use App\Http\Controllers\Api\FaaliyetKayitController;
+use App\Http\Controllers\Api\GonderimController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\SubeController;
 use App\Http\Controllers\Api\UserController;
@@ -49,6 +50,20 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/raporlar/{donem}', [ReportController::class, 'show']);
         Route::get('/raporlar/{donem}/pdf', [ReportController::class, 'pdf']);
+    });
+
+    // Gönderim akışı (doküman bölüm 11-12)
+    // Listeleme her role açık - kapsam kontrolü controller içinde: şube kendi
+    // gönderimlerini, merkez kendi biriminin gönderimlerini görür.
+    Route::get('/gonderimler', [GonderimController::class, 'index']);
+
+    // Şube ayı merkeze gönderir / düzeltme sonrası tekrar gönderir
+    Route::post('/donem-aylar/{ay}/gonder', [GonderimController::class, 'gonder']);
+
+    // Merkez inceler
+    Route::middleware('role:superadmin,birim_yoneticisi')->group(function () {
+        Route::post('/gonderimler/{gonderim}/onayla', [GonderimController::class, 'onayla']);
+        Route::post('/gonderimler/{gonderim}/duzeltme-iste', [GonderimController::class, 'duzeltmeIste']);
     });
 
     // Şube faaliyet kayıtları: yetki/kapsam kontrolü controller içinde (rol + kendi şubesi)

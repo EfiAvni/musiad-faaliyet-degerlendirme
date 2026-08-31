@@ -1,5 +1,5 @@
 import {
-  LogOut, LayoutDashboard, Building2, UserCog, ClipboardList, Calendar, BarChart3, CheckSquare,
+  LogOut, LayoutDashboard, Building2, UserCog, ClipboardList, Calendar, BarChart3, CheckSquare, Inbox,
 } from 'lucide-react'
 import type { Role, User } from '@/types/auth'
 import type { Page } from '@/types/navigation'
@@ -20,6 +20,7 @@ const navByRole: Record<Role, NavItem[]> = {
     { id: 'subeler',      label: 'Şubeler',         icon: Building2 },
     { id: 'faaliyetler',  label: 'Faaliyetler',     icon: ClipboardList },
     { id: 'donemler',     label: 'Dönemler',        icon: Calendar },
+    { id: 'gonderimler',  label: 'Gönderimler',     icon: Inbox },
     { id: 'raporlar',     label: 'Raporlar',        icon: BarChart3 },
     { id: 'kullanicilar', label: 'Kullanıcılar',    icon: UserCog },
   ],
@@ -28,6 +29,7 @@ const navByRole: Record<Role, NavItem[]> = {
     { id: 'subeler',     label: 'Şubeler',       icon: Building2 },
     { id: 'faaliyetler', label: 'Faaliyetler',   icon: ClipboardList },
     { id: 'donemler',    label: 'Dönemler',      icon: Calendar },
+    { id: 'gonderimler', label: 'Gönderimler',   icon: Inbox },
     { id: 'raporlar',    label: 'Raporlar',      icon: BarChart3 },
   ],
   sube_yoneticisi: [
