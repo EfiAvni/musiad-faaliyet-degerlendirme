@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { FileCheck, Edit2, Trash2, ListChecks } from 'lucide-react'
 import { faaliyetKayitlariApi } from '@/services/faaliyetKayitService'
 import type { Faaliyet as ApiFaaliyet } from '@/types/faaliyet'
+import { KATEGORI_ETIKET } from '@/types/faaliyet'
 import type { FaaliyetKayit as ApiFaaliyetKayit } from '@/types/faaliyetKayit'
 import { formatTarihKisa } from '@/utils/formatters'
 import { Card } from '@/components/common/Card'
@@ -63,6 +64,11 @@ export function FaaliyetCard({ f, onEdit, onDelete }: { f: ApiFaaliyet; onEdit: 
         <span className={`text-xs px-2 py-1 rounded-lg font-medium ${f.tarih_gerekli ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-400'}`}>
           {f.tarih_gerekli ? 'Tarihli' : 'Tarihsiz'}
         </span>
+        {f.kategori && (
+          <span className="text-xs px-2 py-1 rounded-lg bg-indigo-50 text-indigo-600 font-medium">
+            {KATEGORI_ETIKET[f.kategori]}
+          </span>
+        )}
         <StatusBadge status={f.durum} />
       </div>
 

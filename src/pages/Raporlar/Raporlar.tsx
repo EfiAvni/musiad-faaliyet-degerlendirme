@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Download, Loader2, BarChart3 } from 'lucide-react'
+import { Card } from '@/components/common/Card'
 import { donemlerApi } from '@/services/donemService'
 import type { Donem as ApiDonem, PeriyotTipi } from '@/types/donem'
 import { raporlarApi } from '@/services/raporService'
@@ -17,6 +18,8 @@ import { RaporGenelTab } from './RaporGenelTab'
 import { RaporSubeTab } from './RaporSubeTab'
 import { RaporFaaliyetTab } from './RaporFaaliyetTab'
 import { RaporMatrisTab } from './RaporMatrisTab'
+import { RaporKategoriKirilimi } from './RaporKategoriKirilimi'
+import { RaporYillikGorunumu } from './RaporYillik'
 
 export function RaporlarPage({ initialDonemId }: { initialDonemId: number | null }) {
   const [donemler, setDonemler] = useState<ApiDonem[]>([])
@@ -28,6 +31,7 @@ export function RaporlarPage({ initialDonemId }: { initialDonemId: number | null
   const [tab, setTab] = useState<RaporTab>('genel')
   const [indiriliyor, setIndiriliyor] = useState(false)
   const [periyotFiltre, setPeriyotFiltre] = useState<PeriyotTipi | 'all'>('all')
+  const [gorunum, setGorunum] = useState<'donem' | 'yillik'>('donem')
   const varsayilanTabUygulandi = useRef<number | null>(null)
 
   useEffect(() => {
@@ -88,70 +92,89 @@ export function RaporlarPage({ initialDonemId }: { initialDonemId: number | null
 
   return (
     <div className="animate-fade-in">
-      <PageHeader title="Raporlar" subtitle="Dönem bazlı performans raporları — şube, faaliyet ve zaman kırılımında"
-        actions={
+      <PageHeader title="Raporlar"
+        subtitle={gorunum === 'donem'
+          ? 'Dönem bazlı performans raporları — şube, faaliyet ve zaman kırılımında'
+          : 'Dönem puanları yıl içinde birikerek şubenin yıllık performansını oluşturur'}
+        actions={gorunum === 'donem' ? (
           <Btn variant="primary" onClick={handleIndir} disabled={!rapor || indiriliyor}>
             {indiriliyor ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
             {indiriliyor ? 'Hazırlanıyor...' : 'PDF İndir'}
           </Btn>
-        } />
+        ) : undefined} />
 
-      {apiError && (
-        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-600">{apiError}</div>
-      )}
-
-      <div className="mb-6 flex items-end gap-4 flex-wrap">
-        <div className="w-56">
-          <FormField label="Rapor Dönemi Türü">
-            <select className={inputCls} value={periyotFiltre}
-              onChange={e => setPeriyotFiltre(e.target.value as PeriyotTipi | 'all')}>
-              <option value="all">Tümü</option>
-              {PERIYOT_TIPI_SIRALAMA.map(tip => (
-                <option key={tip} value={tip}>{PERIYOT_TIPI_LABEL[tip]}</option>
-              ))}
-            </select>
-          </FormField>
-        </div>
-        <div className="w-72">
-          <FormField label="Dönem">
-            <select className={inputCls} value={selectedDonemId ?? ''}
-              onChange={e => setSelectedDonemId(e.target.value ? Number(e.target.value) : null)}>
-              <option value="">Dönem seçin...</option>
-              {filtrelenmisDonemler.map(d => (
-                <option key={d.id} value={d.id}>{d.name}{d.status === 'active' ? ' (Aktif)' : ' (Tamamlandı)'}</option>
-              ))}
-            </select>
-          </FormField>
-        </div>
+      <div className="inline-flex items-center gap-1 p-1 bg-gray-50 rounded-xl mb-6">
+        <button onClick={() => setGorunum('donem')} className={raporTabClass(gorunum === 'donem')}>Dönem Raporu</button>
+        <button onClick={() => setGorunum('yillik')} className={raporTabClass(gorunum === 'yillik')}>Yıllık Performans</button>
       </div>
 
-      {loadingDonemler ? (
-        <Loading />
-      ) : donemler.length === 0 ? (
-        <EmptyState icon={BarChart3} title="Rapor için uygun dönem yok" subtitle="Bir dönemi aktif ettiğinizde veya tamamladığınızda burada raporlanabilir." />
-      ) : filtrelenmisDonemler.length === 0 ? (
-        <EmptyState icon={BarChart3} title="Bu dönem türünde rapor bulunmuyor" subtitle='Farklı bir dönem türü seçin veya "Tümü" seçeneğine dönün.' />
-      ) : !selectedDonemId || loadingRapor || !rapor ? (
-        <Loading />
-      ) : (
-        <>
-          <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
-            <div className="inline-flex items-center gap-1 p-1 bg-gray-50 rounded-xl">
-              <button onClick={() => setTab('genel')} className={raporTabClass(tab === 'genel')}>Genel Özet</button>
-              <button onClick={() => setTab('sube')} className={raporTabClass(tab === 'sube')}>Şube Bazlı</button>
-              <button onClick={() => setTab('faaliyet')} className={raporTabClass(tab === 'faaliyet')}>Faaliyet Bazlı</button>
-              <button onClick={() => setTab('matris')} className={raporTabClass(tab === 'matris')}>Matris</button>
-            </div>
-            <span className="text-xs text-gray-400 px-1">
-              {PERIYOT_TIPI_LABEL[rapor.donem.periyot_tipi]} dönem
-            </span>
-          </div>
+      {gorunum === 'yillik' ? <RaporYillikGorunumu /> : (
+      <>
+        {apiError && (
+          <div className="mb-4 px-4 py-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-600">{apiError}</div>
+        )}
 
-          {tab === 'genel' && <RaporGenelTab rapor={rapor} />}
-          {tab === 'sube' && <RaporSubeTab rapor={rapor} />}
-          {tab === 'faaliyet' && <RaporFaaliyetTab rapor={rapor} />}
-          {tab === 'matris' && <RaporMatrisTab rapor={rapor} />}
-        </>
+        <div className="mb-6 flex items-end gap-4 flex-wrap">
+          <div className="w-56">
+            <FormField label="Rapor Dönemi Türü">
+              <select className={inputCls} value={periyotFiltre}
+                onChange={e => setPeriyotFiltre(e.target.value as PeriyotTipi | 'all')}>
+                <option value="all">Tümü</option>
+                {PERIYOT_TIPI_SIRALAMA.map(tip => (
+                  <option key={tip} value={tip}>{PERIYOT_TIPI_LABEL[tip]}</option>
+                ))}
+              </select>
+            </FormField>
+          </div>
+          <div className="w-72">
+            <FormField label="Dönem">
+              <select className={inputCls} value={selectedDonemId ?? ''}
+                onChange={e => setSelectedDonemId(e.target.value ? Number(e.target.value) : null)}>
+                <option value="">Dönem seçin...</option>
+                {filtrelenmisDonemler.map(d => (
+                  <option key={d.id} value={d.id}>{d.name}{d.status === 'active' ? ' (Aktif)' : ' (Tamamlandı)'}</option>
+                ))}
+              </select>
+            </FormField>
+          </div>
+        </div>
+
+        {loadingDonemler ? (
+          <Loading />
+        ) : donemler.length === 0 ? (
+          <EmptyState icon={BarChart3} title="Rapor için uygun dönem yok" subtitle="Bir dönemi aktif ettiğinizde veya tamamladığınızda burada raporlanabilir." />
+        ) : filtrelenmisDonemler.length === 0 ? (
+          <EmptyState icon={BarChart3} title="Bu dönem türünde rapor bulunmuyor" subtitle='Farklı bir dönem türü seçin veya "Tümü" seçeneğine dönün.' />
+        ) : !selectedDonemId || loadingRapor || !rapor ? (
+          <Loading />
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
+              <div className="inline-flex items-center gap-1 p-1 bg-gray-50 rounded-xl">
+                <button onClick={() => setTab('genel')} className={raporTabClass(tab === 'genel')}>Genel Özet</button>
+                <button onClick={() => setTab('sube')} className={raporTabClass(tab === 'sube')}>Şube Bazlı</button>
+                <button onClick={() => setTab('faaliyet')} className={raporTabClass(tab === 'faaliyet')}>Faaliyet Bazlı</button>
+                <button onClick={() => setTab('matris')} className={raporTabClass(tab === 'matris')}>Matris</button>
+                <button onClick={() => setTab('kategori')} className={raporTabClass(tab === 'kategori')}>Kriter Başlıkları</button>
+              </div>
+              <span className="text-xs text-gray-400 px-1">
+                {PERIYOT_TIPI_LABEL[rapor.donem.periyot_tipi]} dönem
+              </span>
+            </div>
+
+            {tab === 'genel' && <RaporGenelTab rapor={rapor} />}
+            {tab === 'sube' && <RaporSubeTab rapor={rapor} />}
+            {tab === 'faaliyet' && <RaporFaaliyetTab rapor={rapor} />}
+            {tab === 'matris' && <RaporMatrisTab rapor={rapor} />}
+            {tab === 'kategori' && (
+              <Card className="p-5">
+                <RaporKategoriKirilimi kirilim={rapor.kategori_bazli}
+                  baslik={`${rapor.donem.name} — Kriter Başlıklarına Göre Dağılım`} />
+              </Card>
+            )}
+          </>
+        )}
+      </>
       )}
     </div>
   )

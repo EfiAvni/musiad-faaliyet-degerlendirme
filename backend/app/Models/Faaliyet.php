@@ -17,7 +17,7 @@ class Faaliyet extends Model
     protected $fillable = [
         'title', 'detay', 'puan', 'hedef', 'aciklama',
         'tarih_gerekli', 'donem_id', 'durum',
-        'kriter_turu', 'kademeler',
+        'kriter_turu', 'kademeler', 'kategori',
     ];
 
     protected $casts = [

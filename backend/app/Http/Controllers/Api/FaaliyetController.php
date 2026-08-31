@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Donem;
 use App\Models\Faaliyet;
 use App\Support\BirimKapsami;
+use App\Support\KriterKategorileri;
 use App\Support\PuanHesaplayici;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -56,6 +57,7 @@ class FaaliyetController extends Controller
             'kademeler'       => 'nullable|array',
             'kademeler.*.esik' => 'required_with:kademeler|integer|min:0',
             'kademeler.*.puan' => 'required_with:kademeler|integer|min:0',
+            'kategori'        => ['nullable', Rule::in(KriterKategorileri::secilebilirler())],
         ]);
 
         $data['kriter_turu'] = $data['kriter_turu'] ?? PuanHesaplayici::SAYI;
@@ -106,6 +108,7 @@ class FaaliyetController extends Controller
             'kademeler'       => 'nullable|array',
             'kademeler.*.esik' => 'required_with:kademeler|integer|min:0',
             'kademeler.*.puan' => 'required_with:kademeler|integer|min:0',
+            'kategori'        => ['nullable', Rule::in(KriterKategorileri::secilebilirler())],
         ]);
 
         $this->assertPuanlamaDegistirilebilir($faaliyet, $data);

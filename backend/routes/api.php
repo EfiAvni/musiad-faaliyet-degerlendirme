@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\GonderimController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\SubeController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\YillikRaporController;
 use Illuminate\Support\Facades\Route;
 
 // Public routes
@@ -48,6 +49,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/subeler/{sube}/puan-ozeti', [SubeController::class, 'puanOzeti']);
 
+        // Yillik önce tanımlanmalı — yoksa {donem} parametresi "yillik"i yakalar
+        Route::get('/raporlar/yillik', [YillikRaporController::class, 'show']);
         Route::get('/raporlar/{donem}', [ReportController::class, 'show']);
         Route::get('/raporlar/{donem}/pdf', [ReportController::class, 'pdf']);
     });
