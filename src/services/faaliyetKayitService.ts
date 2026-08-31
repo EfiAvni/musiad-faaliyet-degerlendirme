@@ -2,10 +2,11 @@ import { api } from './api'
 import type { FaaliyetKayit } from '@/types/faaliyetKayit'
 
 export const faaliyetKayitlariApi = {
-  list: (params?: { sube_id?: number; faaliyet_id?: number }) => {
+  list: (params?: { sube_id?: number; faaliyet_id?: number; donem_id?: number }) => {
     const qs = new URLSearchParams()
     if (params?.sube_id) qs.set('sube_id', String(params.sube_id))
     if (params?.faaliyet_id) qs.set('faaliyet_id', String(params.faaliyet_id))
+    if (params?.donem_id) qs.set('donem_id', String(params.donem_id))
     const query = qs.toString()
     return api.get<FaaliyetKayit[]>(`/faaliyet-kayitlari${query ? `?${query}` : ''}`)
   },

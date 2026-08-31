@@ -11,3 +11,4 @@ export type Page =
   | 'faaliyetlerim'
   | 'gonderimler'
   | 'raporlar'
+  | 'performansim'
