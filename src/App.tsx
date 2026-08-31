@@ -17,6 +17,7 @@ import { KullanicilarPage } from '@/pages/Kullanicilar/Kullanicilar'
 import { SubelerPage } from '@/pages/Subeler/Subeler'
 import { FaaliyetlerPage } from '@/pages/Faaliyetler/Faaliyetler'
 import { FaaliyetlerimPage } from '@/pages/Faaliyetler/Faaliyetlerim'
+import { PerformansimPage } from '@/pages/Performansim/Performansim'
 import { DonemlerPage } from '@/pages/Donemler/Donemler'
 import { GonderimlerPage } from '@/pages/Gonderimler/Gonderimler'
 
@@ -82,6 +83,7 @@ export default function App() {
       case 'faaliyetler':   return <FaaliyetlerPage initialDonemId={faaliyetlerInitialDonemId} />
       case 'donemler':      return <DonemlerPage onShowFaaliyetler={openFaaliyetlerForDonem} onShowRapor={openRaporForDonem} user={currentUser} />
       case 'faaliyetlerim': return <FaaliyetlerimPage />
+      case 'performansim':  return <PerformansimPage />
       case 'gonderimler':   return <GonderimlerPage />
       case 'raporlar':      return <RaporlarPage initialDonemId={raporlarInitialDonemId} />
       default:              return null

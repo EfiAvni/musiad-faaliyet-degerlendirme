@@ -48,7 +48,9 @@ export function FaaliyetlerimPage() {
       const [full, faaliyetData, kayitData, gonderimData] = await Promise.all([
         donemlerApi.show(donemId),
         faaliyetlerApi.list(donemId),
-        faaliyetKayitlariApi.list(),
+        // Dönem filtresi olmadan şubenin tüm geçmiş kayıtları geliyordu; geçmiş
+        // dönemler artık görüntülenebildiği için bu liste yıllar geçtikçe büyür.
+        faaliyetKayitlariApi.list({ donem_id: donemId }),
         gonderimlerApi.list({ donem_id: donemId }),
       ])
       setAylar(full.aylar ?? [])

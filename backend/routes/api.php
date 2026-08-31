@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\FaaliyetKayitController;
 use App\Http\Controllers\Api\GonderimController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\SubeController;
+use App\Http\Controllers\Api\SubePerformansController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\YillikRaporController;
 use Illuminate\Support\Facades\Route;
@@ -68,6 +69,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/gonderimler/{gonderim}/onayla', [GonderimController::class, 'onayla']);
         Route::post('/gonderimler/{gonderim}/duzeltme-iste', [GonderimController::class, 'duzeltmeIste']);
         Route::post('/gonderimler/{gonderim}/puanla', [GonderimController::class, 'puanla']);
+    });
+
+    // Şubenin kendi performansı (doküman bölüm 4, 13). Merkezin /raporlar
+    // uçlarından ayrı: bunlar yalnızca oturumdaki kullanıcının şubesini döner,
+    // şube id'si parametre olarak alınmaz.
+    Route::middleware('role:sube_yoneticisi')->group(function () {
+        Route::get('/performansim', [SubePerformansController::class, 'ozet']);
+        Route::get('/performansim/yillik', [SubePerformansController::class, 'yillik']);
+        Route::get('/performansim/yillar', [SubePerformansController::class, 'yillar']);
     });
 
     // Şube faaliyet kayıtları: yetki/kapsam kontrolü controller içinde (rol + kendi şubesi)
