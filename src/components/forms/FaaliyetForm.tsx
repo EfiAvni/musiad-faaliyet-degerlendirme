@@ -1,9 +1,13 @@
+import { Trash2 } from 'lucide-react'
 import { FormField } from '@/components/common/FormField'
 import { inputCls } from '@/utils/constants'
 import type { Donem as ApiDonem } from '@/types/donem'
+import type { Kademe, KriterTuru } from '@/types/faaliyet'
+import { KRITER_TURU_ACIKLAMA, KRITER_TURU_ETIKET } from '@/types/faaliyet'
 
 export function FaaliyetFormFields({ title, setTitle, detay, setDetay, puan, setPuan, hedef, setHedef,
   aciklama, setAciklama, tarihGerekli, setTarihGerekli, donemId, setDonemId, donemOptions, durum, setDurum,
+  kriterTuru = 'sayi', setKriterTuru = () => {}, kademeler = [], setKademeler,
 }: {
   title: string; setTitle: (v: string) => void
   detay: string; setDetay: (v: string) => void
@@ -14,7 +18,18 @@ export function FaaliyetFormFields({ title, setTitle, detay, setDetay, puan, set
   donemId?: number | ''; setDonemId?: (v: number | '') => void
   donemOptions?: ApiDonem[]
   durum?: 'active' | 'completed' | 'passive'; setDurum?: (v: 'active' | 'completed' | 'passive') => void
+  kriterTuru?: KriterTuru; setKriterTuru?: (v: KriterTuru) => void
+  kademeler?: Kademe[]; setKademeler?: (v: Kademe[]) => void
 }) {
+  // Hedef yalnızca adet ya da oran hedefi olan türlerde anlamlı.
+  const hedefGorunur = kriterTuru === 'sayi' || kriterTuru === 'oran'
+
+  const enYuksekPuan = kriterTuru === 'sayi'
+    ? (parseInt(puan) || 0) * (parseInt(hedef) || 0)
+    : kriterTuru === 'kademeli'
+      ? Math.max(0, ...kademeler.map(k => k.puan))
+      : (parseInt(puan) || 0)
+
   return (
     <div className="space-y-4">
       <FormField label="Faaliyet Adı">
@@ -23,20 +38,79 @@ export function FaaliyetFormFields({ title, setTitle, detay, setDetay, puan, set
       <FormField label="Detay">
         <input className={inputCls} placeholder="Kısa detay..." value={detay} onChange={e => setDetay(e.target.value)} />
       </FormField>
-      <div className="grid grid-cols-2 gap-3">
-        <FormField label="Puan">
+      <FormField label="Nasıl Puanlanacak">
+        <select className={inputCls} value={kriterTuru} onChange={e => setKriterTuru(e.target.value as KriterTuru)}>
+          {(Object.keys(KRITER_TURU_ETIKET) as KriterTuru[]).map(t => (
+            <option key={t} value={t}>{KRITER_TURU_ETIKET[t]}</option>
+          ))}
+        </select>
+        <p className="text-xs text-gray-400 mt-1.5">{KRITER_TURU_ACIKLAMA[kriterTuru]}</p>
+      </FormField>
+
+      <div className={hedefGorunur ? 'grid grid-cols-2 gap-3' : ''}>
+        <FormField label={kriterTuru === 'manuel' ? 'En Yüksek Puan' : 'Puan'}>
           <input className={inputCls} type="number" min="0" placeholder="0" value={puan} onChange={e => setPuan(e.target.value)} />
         </FormField>
-        <FormField label="Hedef">
-          <input className={inputCls} type="number" min="0" placeholder="0" value={hedef} onChange={e => setHedef(e.target.value)} />
-        </FormField>
+        {hedefGorunur && (
+          <FormField label={kriterTuru === 'oran' ? 'Hedef (%)' : 'Hedef'}>
+            <input className={inputCls} type="number" min="0" placeholder="0" value={hedef} onChange={e => setHedef(e.target.value)} />
+          </FormField>
+        )}
       </div>
+
       <p className="text-xs text-gray-400 -mt-2">
-        Hedef, şubenin bu faaliyeti kaç kez yapması gerektiğini gösteren adet değeridir.
-        {(parseInt(puan) > 0 && parseInt(hedef) > 0) && (
-          <> Bu faaliyetten kazanılabilecek maksimum puan: <strong className="text-gray-600">{(parseInt(puan) || 0) * (parseInt(hedef) || 0)}</strong> ({puan} × {hedef}).</>
+        {kriterTuru === 'sayi' && (
+          <>
+            Hedef, şubenin bu faaliyeti kaç kez yapması gerektiğini gösterir.
+            {enYuksekPuan > 0 && <> En yüksek puan: <strong className="text-gray-600">{enYuksekPuan}</strong> ({puan} × {hedef}).</>}
+          </>
+        )}
+        {kriterTuru === 'oran' && (
+          <>
+            Hedef, üyelerin yüzde kaçına ulaşılması gerektiğini gösterir. Örneğin 20 yazarsanız
+            100 üyeli şubenin 20 kayıt girmesi tam puan demektir.
+            {enYuksekPuan > 0 && <> En yüksek puan: <strong className="text-gray-600">{enYuksekPuan}</strong>.</>}
+          </>
+        )}
+        {kriterTuru === 'evet_hayir' && enYuksekPuan > 0 && (
+          <>Şube bu faaliyeti yaptıysa <strong className="text-gray-600">{enYuksekPuan}</strong> puan alır.</>
+        )}
+        {kriterTuru === 'manuel' && enYuksekPuan > 0 && (
+          <>Merkez bu faaliyete en fazla <strong className="text-gray-600">{enYuksekPuan}</strong> puan verebilir.</>
+        )}
+        {kriterTuru === 'kademeli' && (
+          <>Puan alanı bu türde kullanılmaz; puanları aşağıdaki kademelerde belirlersiniz.</>
         )}
       </p>
+
+      {kriterTuru === 'kademeli' && setKademeler && (
+        <FormField label="Kademeler">
+          <div className="space-y-2">
+            {kademeler.map((k, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input className={inputCls} type="number" min="0" placeholder="Eşik (adet)"
+                  value={k.esik === 0 && kademeler[i].puan === 0 ? '' : k.esik}
+                  onChange={e => setKademeler(kademeler.map((x, j) => j === i ? { ...x, esik: parseInt(e.target.value) || 0 } : x))} />
+                <input className={inputCls} type="number" min="0" placeholder="Puan"
+                  value={k.puan || ''}
+                  onChange={e => setKademeler(kademeler.map((x, j) => j === i ? { ...x, puan: parseInt(e.target.value) || 0 } : x))} />
+                <button type="button" onClick={() => setKademeler(kademeler.filter((_, j) => j !== i))}
+                  className="p-2 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 flex-shrink-0" title="Kademeyi kaldır">
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+            <button type="button" onClick={() => setKademeler([...kademeler, { esik: 0, puan: 0 }])}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+              style={{ color: '#B99C1A' }}>
+              + Kademe Ekle
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 mt-1.5">
+            Örnek: 3 kayıt → 10 puan, 7 kayıt → 25 puan. Şube eşiğini geçtiği en yüksek kademenin puanını alır.
+          </p>
+        </FormField>
+      )}
       <FormField label="Açıklama">
         <textarea className={`${inputCls} min-h-20 resize-y`} placeholder="Faaliyet açıklaması..."
           value={aciklama} onChange={e => setAciklama(e.target.value)} />

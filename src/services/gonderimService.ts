@@ -20,4 +20,11 @@ export const gonderimlerApi = {
 
   duzeltmeIste: (gonderimId: number, merkezNotu: string) =>
     api.post<Gonderim>(`/gonderimler/${gonderimId}/duzeltme-iste`, { merkez_notu: merkezNotu }),
+
+  /** Yalnızca kriter türü "manuel" olan faaliyetler için. */
+  puanla: (gonderimId: number, faaliyetId: number, puan: number, not?: string) =>
+    api.post<{ id: number; faaliyet_id: number; puan: number; not: string | null }>(
+      `/gonderimler/${gonderimId}/puanla`,
+      { faaliyet_id: faaliyetId, puan, not: not || null },
+    ),
 }

@@ -15,6 +15,7 @@ import { Modal, ConfirmModal } from '@/components/common/Modal'
 import { Loading } from '@/components/common/Loading'
 import { EmptyState } from '@/components/common/EmptyState'
 import { FaaliyetFormFields } from '@/components/forms/FaaliyetForm'
+import type { Kademe, KriterTuru } from '@/types/faaliyet'
 import { FaaliyetCard } from './FaaliyetCard'
 
 export function FaaliyetlerPage({ initialDonemId }: { initialDonemId: number | null }) {
@@ -32,6 +33,8 @@ export function FaaliyetlerPage({ initialDonemId }: { initialDonemId: number | n
   const [formHedef, setFormHedef] = useState('')
   const [formAciklama, setFormAciklama] = useState('')
   const [formTarihGerekli, setFormTarihGerekli] = useState(false)
+  const [formKriterTuru, setFormKriterTuru] = useState<KriterTuru>('sayi')
+  const [formKademeler, setFormKademeler] = useState<Kademe[]>([])
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
 
@@ -43,6 +46,8 @@ export function FaaliyetlerPage({ initialDonemId }: { initialDonemId: number | n
   const [editHedef, setEditHedef] = useState('')
   const [editAciklama, setEditAciklama] = useState('')
   const [editTarihGerekli, setEditTarihGerekli] = useState(false)
+  const [editKriterTuru, setEditKriterTuru] = useState<KriterTuru>('sayi')
+  const [editKademeler, setEditKademeler] = useState<Kademe[]>([])
   const [editDonemId, setEditDonemId] = useState<number | ''>('')
   const [editDurum, setEditDurum] = useState<'active' | 'completed' | 'passive'>('active')
   const [editSaving, setEditSaving] = useState(false)
@@ -113,6 +118,8 @@ export function FaaliyetlerPage({ initialDonemId }: { initialDonemId: number | n
         aciklama: formAciklama.trim() || null,
         tarih_gerekli: formTarihGerekli,
         donem_id: donemFilter,
+        kriter_turu: formKriterTuru,
+        kademeler: formKriterTuru === 'kademeli' ? formKademeler : null,
       })
       await loadFaaliyetler(donemFilter)
       setShowModal(false)
@@ -131,6 +138,8 @@ export function FaaliyetlerPage({ initialDonemId }: { initialDonemId: number | n
     setEditHedef(String(f.hedef))
     setEditAciklama(f.aciklama ?? '')
     setEditTarihGerekli(f.tarih_gerekli)
+    setEditKriterTuru(f.kriter_turu ?? 'sayi')
+    setEditKademeler(f.kademeler ?? [])
     setEditDonemId(f.donem_id)
     setEditDurum(f.durum)
     setEditError('')
@@ -152,6 +161,8 @@ export function FaaliyetlerPage({ initialDonemId }: { initialDonemId: number | n
         tarih_gerekli: editTarihGerekli,
         donem_id: Number(editDonemId),
         durum: editDurum,
+        kriter_turu: editKriterTuru,
+        kademeler: editKriterTuru === 'kademeli' ? editKademeler : null,
       })
       await loadFaaliyetler(donemFilter)
       closeEditModal()
@@ -255,6 +266,8 @@ export function FaaliyetlerPage({ initialDonemId }: { initialDonemId: number | n
             hedef={formHedef} setHedef={setFormHedef}
             aciklama={formAciklama} setAciklama={setFormAciklama}
             tarihGerekli={formTarihGerekli} setTarihGerekli={setFormTarihGerekli}
+            kriterTuru={formKriterTuru} setKriterTuru={setFormKriterTuru}
+            kademeler={formKademeler} setKademeler={setFormKademeler}
           />
           {formError && <p className="text-xs text-red-500 mt-3">{formError}</p>}
           <div className="flex items-center justify-end gap-2 pt-4">
@@ -275,6 +288,8 @@ export function FaaliyetlerPage({ initialDonemId }: { initialDonemId: number | n
             hedef={editHedef} setHedef={setEditHedef}
             aciklama={editAciklama} setAciklama={setEditAciklama}
             tarihGerekli={editTarihGerekli} setTarihGerekli={setEditTarihGerekli}
+            kriterTuru={editKriterTuru} setKriterTuru={setEditKriterTuru}
+            kademeler={editKademeler} setKademeler={setEditKademeler}
             donemId={editDonemId} setDonemId={setEditDonemId}
             donemOptions={selectableDonemler}
             durum={editDurum} setDurum={setEditDurum}

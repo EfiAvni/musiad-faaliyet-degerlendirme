@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Inbox, CheckCircle2, RotateCcw } from 'lucide-react'
+import { Inbox, CheckCircle2, RotateCcw, SlidersHorizontal } from 'lucide-react'
 import { gonderimlerApi } from '@/services/gonderimService'
+import { faaliyetlerApi } from '@/services/faaliyetService'
+import type { Faaliyet } from '@/types/faaliyet'
 import type { Gonderim, GonderimDurum } from '@/types/gonderim'
 import { GONDERIM_DURUM_ETIKET, GONDERIM_DURUM_RENK } from '@/types/gonderim'
 import { inputCls } from '@/utils/constants'
@@ -34,6 +36,54 @@ export function GonderimlerPage() {
   const [not, setNot] = useState('')
   const [islemde, setIslemde] = useState(false)
   const [formHata, setFormHata] = useState('')
+
+  // Elle puanlanan kriterler (doküman bölüm 5) — otomatik hesaplananlar burada görünmez.
+  const [puanTarget, setPuanTarget] = useState<Gonderim | null>(null)
+  const [manuelFaaliyetler, setManuelFaaliyetler] = useState<Faaliyet[]>([])
+  const [puanlar, setPuanlar] = useState<Record<number, string>>({})
+  const [puanYukleniyor, setPuanYukleniyor] = useState(false)
+  const [puanHata, setPuanHata] = useState('')
+
+  const openPuanla = async (g: Gonderim) => {
+    setPuanTarget(g)
+    setPuanHata('')
+    setManuelFaaliyetler([])
+    setPuanYukleniyor(true)
+    try {
+      const donemId = g.donem_ay?.donem_id
+      const hepsi = donemId ? await faaliyetlerApi.list(donemId) : []
+      const manuel = hepsi.filter(f => f.kriter_turu === 'manuel')
+      setManuelFaaliyetler(manuel)
+
+      // Daha önce verilmiş puanlar forma önyüklenir.
+      const mevcut: Record<number, string> = {}
+      for (const d of g.degerlendirmeler ?? []) mevcut[d.faaliyet_id] = String(d.puan)
+      setPuanlar(mevcut)
+    } catch {
+      setPuanHata('Faaliyetler yüklenemedi.')
+    } finally {
+      setPuanYukleniyor(false)
+    }
+  }
+
+  const handlePuanKaydet = async () => {
+    if (!puanTarget) return
+    setIslemde(true)
+    setPuanHata('')
+    try {
+      for (const f of manuelFaaliyetler) {
+        const ham = puanlar[f.id]
+        if (ham === undefined || ham === '') continue
+        await gonderimlerApi.puanla(puanTarget.id, f.id, parseInt(ham) || 0)
+      }
+      await load()
+      setPuanTarget(null)
+    } catch (e: any) {
+      setPuanHata(e?.errors?.puan?.[0] ?? e?.errors?.faaliyet_id?.[0] ?? e?.message ?? 'Puan kaydedilemedi.')
+    } finally {
+      setIslemde(false)
+    }
+  }
 
   const load = async () => {
     try {
@@ -139,9 +189,14 @@ export function GonderimlerPage() {
 
                 <div className="flex items-center gap-2 flex-wrap">
                   {g.durum === 'gonderildi' && (
-                    <Btn variant="primary" size="sm" onClick={() => handleOnayla(g)} disabled={islemde}>
-                      <CheckCircle2 size={13} />Onayla
-                    </Btn>
+                    <>
+                      <Btn variant="secondary" size="sm" onClick={() => openPuanla(g)} disabled={islemde}>
+                        <SlidersHorizontal size={13} />Puanla
+                      </Btn>
+                      <Btn variant="primary" size="sm" onClick={() => handleOnayla(g)} disabled={islemde}>
+                        <CheckCircle2 size={13} />Onayla
+                      </Btn>
+                    </>
                   )}
                   {(g.durum === 'gonderildi' || g.durum === 'onaylandi') && (
                     <Btn variant="secondary" size="sm"
@@ -190,6 +245,52 @@ export function GonderimlerPage() {
               <Btn variant="primary" onClick={handleDuzeltmeIste} disabled={islemde || not.trim().length < 5}>
                 {islemde ? 'Gönderiliyor...' : 'Düzeltme İste'}
               </Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {puanTarget && (
+        <Modal title="Kriterleri Puanla" onClose={() => setPuanTarget(null)}>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-500">
+              <span className="font-medium text-gray-800">{puanTarget.sube?.name}</span>
+              {' · '}{puanTarget.donem_ay?.name}
+            </p>
+
+            {puanYukleniyor ? (
+              <Loading />
+            ) : manuelFaaliyetler.length === 0 ? (
+              <p className="text-sm text-gray-500">
+                Bu dönemde elle puanlanan kriter yok. Diğer kriterler şubenin girdiği kayıtlardan
+                otomatik hesaplanıyor.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {manuelFaaliyetler.map(f => (
+                  <div key={f.id} className="flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800">{f.title}</p>
+                      <p className="text-xs text-gray-400">En fazla {f.max_puan} puan</p>
+                    </div>
+                    <input type="number" min="0" max={f.max_puan} placeholder="0"
+                      className={`${inputCls} w-24 flex-shrink-0`}
+                      value={puanlar[f.id] ?? ''}
+                      onChange={e => setPuanlar({ ...puanlar, [f.id]: e.target.value })} />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {puanHata && <p className="text-xs text-red-500">{puanHata}</p>}
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Btn variant="secondary" onClick={() => setPuanTarget(null)} disabled={islemde}>Kapat</Btn>
+              {manuelFaaliyetler.length > 0 && (
+                <Btn variant="primary" onClick={handlePuanKaydet} disabled={islemde}>
+                  {islemde ? 'Kaydediliyor...' : 'Puanları Kaydet'}
+                </Btn>
+              )}
             </div>
           </div>
         </Modal>

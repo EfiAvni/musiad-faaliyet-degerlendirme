@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Donem;
 use App\Models\Faaliyet;
 use App\Support\BirimKapsami;
+use App\Support\PuanHesaplayici;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -43,15 +44,22 @@ class FaaliyetController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'title'         => 'required|string|max:255',
-            'detay'         => 'nullable|string',
-            'puan'          => 'nullable|integer|min:0',
-            'hedef'         => 'nullable|integer|min:0',
-            'aciklama'      => 'nullable|string',
-            'tarih_gerekli' => 'nullable|boolean',
-            'donem_id'      => 'required|exists:donemler,id',
-            'durum'         => ['nullable', Rule::in(['active', 'completed', 'passive'])],
+            'title'           => 'required|string|max:255',
+            'detay'           => 'nullable|string',
+            'puan'            => 'nullable|integer|min:0',
+            'hedef'           => 'nullable|integer|min:0',
+            'aciklama'        => 'nullable|string',
+            'tarih_gerekli'   => 'nullable|boolean',
+            'donem_id'        => 'required|exists:donemler,id',
+            'durum'           => ['nullable', Rule::in(['active', 'completed', 'passive'])],
+            'kriter_turu'     => ['nullable', Rule::in(PuanHesaplayici::TURLER)],
+            'kademeler'       => 'nullable|array',
+            'kademeler.*.esik' => 'required_with:kademeler|integer|min:0',
+            'kademeler.*.puan' => 'required_with:kademeler|integer|min:0',
         ]);
+
+        $data['kriter_turu'] = $data['kriter_turu'] ?? PuanHesaplayici::SAYI;
+        $this->assertKriterTutarli($data['kriter_turu'], $data);
 
         $donem = Donem::findOrFail($data['donem_id']);
 
@@ -86,17 +94,22 @@ class FaaliyetController extends Controller
         $this->assertErisim($request, $faaliyet);
 
         $data = $request->validate([
-            'title'         => 'sometimes|string|max:255',
-            'detay'         => 'nullable|string',
-            'puan'          => 'sometimes|integer|min:0',
-            'hedef'         => 'sometimes|integer|min:0',
-            'aciklama'      => 'nullable|string',
-            'tarih_gerekli' => 'sometimes|boolean',
-            'donem_id'      => 'sometimes|exists:donemler,id',
-            'durum'         => ['sometimes', Rule::in(['active', 'completed', 'passive'])],
+            'title'           => 'sometimes|string|max:255',
+            'detay'           => 'nullable|string',
+            'puan'            => 'sometimes|integer|min:0',
+            'hedef'           => 'sometimes|integer|min:0',
+            'aciklama'        => 'nullable|string',
+            'tarih_gerekli'   => 'sometimes|boolean',
+            'donem_id'        => 'sometimes|exists:donemler,id',
+            'durum'           => ['sometimes', Rule::in(['active', 'completed', 'passive'])],
+            'kriter_turu'     => ['sometimes', Rule::in(PuanHesaplayici::TURLER)],
+            'kademeler'       => 'nullable|array',
+            'kademeler.*.esik' => 'required_with:kademeler|integer|min:0',
+            'kademeler.*.puan' => 'required_with:kademeler|integer|min:0',
         ]);
 
         $this->assertPuanlamaDegistirilebilir($faaliyet, $data);
+        $this->assertKriterTutarli($data['kriter_turu'] ?? $faaliyet->kriter_turu, $data + $faaliyet->toArray());
 
         if (isset($data['donem_id']) && $data['donem_id'] !== $faaliyet->donem_id) {
             $hedefDonem = Donem::findOrFail($data['donem_id']);
@@ -124,6 +137,32 @@ class FaaliyetController extends Controller
 
         $faaliyet->delete();
         return response()->json(null, 204);
+    }
+
+    /**
+     * Her kriter türü kendi alanlarına ihtiyaç duyar; eksik tanımlanmış bir
+     * kriter sessizce sıfır puan üretir ve bu ancak dönem sonunda fark edilir.
+     */
+    private function assertKriterTutarli(string $tur, array $data): void
+    {
+        if ($tur === PuanHesaplayici::KADEMELI && empty($data['kademeler'])) {
+            throw ValidationException::withMessages([
+                'kademeler' => 'Kademeli kriterde en az bir kademe tanımlamalısınız (eşik ve puan).',
+            ]);
+        }
+
+        if ($tur === PuanHesaplayici::ORAN && (int) ($data['hedef'] ?? 0) <= 0) {
+            throw ValidationException::withMessages([
+                'hedef' => 'Oran tipi kriterde hedef yüzde belirtmelisiniz (örneğin üyelerin %20\'si için 20).',
+            ]);
+        }
+
+        if (in_array($tur, [PuanHesaplayici::EVET_HAYIR, PuanHesaplayici::MANUEL, PuanHesaplayici::ORAN], true)
+            && (int) ($data['puan'] ?? 0) <= 0) {
+            throw ValidationException::withMessages([
+                'puan' => 'Bu kriter türünde alınabilecek puan sıfırdan büyük olmalıdır.',
+            ]);
+        }
     }
 
     private function assertErisim(Request $request, Faaliyet $faaliyet): void

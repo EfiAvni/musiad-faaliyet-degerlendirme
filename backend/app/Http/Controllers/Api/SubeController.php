@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Donem;
 use App\Models\Faaliyet;
+use App\Models\FaaliyetDegerlendirme;
 use App\Models\FaaliyetKayit;
 use App\Models\Sube;
 use App\Support\BirimKapsami;
+use App\Support\PuanHesaplayici;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -100,15 +102,28 @@ class SubeController extends Controller
             ->groupBy('faaliyet_id')
             ->pluck('adet', 'faaliyet_id');
 
+        // Merkezin bu şube için elle verdiği puanların dönem toplamı.
+        $manuelPuanlar = FaaliyetDegerlendirme::query()
+            ->join('ay_gonderimleri', 'ay_gonderimleri.id', '=', 'faaliyet_degerlendirmeleri.ay_gonderim_id')
+            ->join('donem_aylar', 'donem_aylar.id', '=', 'ay_gonderimleri.donem_ay_id')
+            ->where('donem_aylar.donem_id', $donemId)
+            ->where('ay_gonderimleri.sube_id', $sube->id)
+            ->whereNull('ay_gonderimleri.deleted_at')
+            ->groupBy('faaliyet_degerlendirmeleri.faaliyet_id')
+            ->selectRaw('faaliyet_degerlendirmeleri.faaliyet_id, SUM(faaliyet_degerlendirmeleri.puan) as toplam')
+            ->pluck('toplam', 'faaliyet_id');
+
         $toplam = 0;
-        $detaylar = $faaliyetler->map(function ($f) use ($kayitSayilari, &$toplam) {
+        $detaylar = $faaliyetler->map(function ($f) use ($kayitSayilari, $manuelPuanlar, $sube, &$toplam) {
             $adet = (int) ($kayitSayilari[$f->id] ?? 0);
-            $katki = min($adet * $f->puan, $f->max_puan);
+            $manuel = isset($manuelPuanlar[$f->id]) ? (int) $manuelPuanlar[$f->id] : null;
+            $katki = PuanHesaplayici::puan($f, $adet, $sube->uye_sayisi, $manuel);
             $toplam += $katki;
 
             return [
                 'faaliyet_id'  => $f->id,
                 'title'        => $f->title,
+                'kriter_turu'  => $f->kriter_turu,
                 'kayit_sayisi' => $adet,
                 'puan'         => $f->puan,
                 'hedef'        => $f->hedef,
