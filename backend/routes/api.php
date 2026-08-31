@@ -64,6 +64,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('role:superadmin,birim_yoneticisi')->group(function () {
         Route::post('/gonderimler/{gonderim}/onayla', [GonderimController::class, 'onayla']);
         Route::post('/gonderimler/{gonderim}/duzeltme-iste', [GonderimController::class, 'duzeltmeIste']);
+        Route::post('/gonderimler/{gonderim}/puanla', [GonderimController::class, 'puanla']);
     });
 
     // Şube faaliyet kayıtları: yetki/kapsam kontrolü controller içinde (rol + kendi şubesi)

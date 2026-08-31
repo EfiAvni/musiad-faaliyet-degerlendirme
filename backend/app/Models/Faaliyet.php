@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Support\PuanHesaplayici;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -16,12 +17,14 @@ class Faaliyet extends Model
     protected $fillable = [
         'title', 'detay', 'puan', 'hedef', 'aciklama',
         'tarih_gerekli', 'donem_id', 'durum',
+        'kriter_turu', 'kademeler',
     ];
 
     protected $casts = [
         'puan'          => 'integer',
         'hedef'         => 'integer',
         'tarih_gerekli' => 'boolean',
+        'kademeler'     => 'array',
     ];
 
     protected $appends = ['max_puan'];
@@ -36,8 +39,9 @@ class Faaliyet extends Model
         return $this->hasMany(FaaliyetKayit::class);
     }
 
+    /** Kriter türüne göre değişir; hesap PuanHesaplayici'da tek yerde durur. */
     public function getMaxPuanAttribute(): int
     {
-        return $this->puan * $this->hedef;
+        return PuanHesaplayici::maxPuan($this);
     }
 }

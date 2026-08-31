@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AyGonderim;
 use App\Models\DonemAy;
+use App\Models\Faaliyet;
+use App\Models\FaaliyetDegerlendirme;
 use App\Models\FaaliyetKayit;
 use App\Support\BirimKapsami;
+use App\Support\PuanHesaplayici;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -33,6 +36,7 @@ class GonderimController extends Controller
             'donemAy.donem:id,name,birim_id,status',
             'gonderen:id,name',
             'degerlendiren:id,name',
+            'degerlendirmeler:id,ay_gonderim_id,faaliyet_id,puan,not',
         ])->orderByDesc('gonderildi_at');
 
         if (BirimKapsami::subeIleSinirliMi($user)) {
@@ -173,6 +177,57 @@ class GonderimController extends Controller
         return response()->json($this->taze($gonderim));
     }
 
+    /**
+     * Merkez, elle puanlanan faaliyetlere bu gönderim için puan verir
+     * (doküman bölüm 5). Yalnızca kriter türü "manuel" olan faaliyetler
+     * puanlanabilir; diğerleri otomatik hesaplanır.
+     */
+    public function puanla(Request $request, AyGonderim $gonderim): JsonResponse
+    {
+        $this->assertMerkezErisimi($request, $gonderim);
+
+        $data = $request->validate([
+            'faaliyet_id' => 'required|exists:faaliyetler,id',
+            'puan'        => 'required|integer|min:0',
+            'not'         => 'nullable|string|max:2000',
+        ]);
+
+        $faaliyet = Faaliyet::findOrFail($data['faaliyet_id']);
+
+        if (!PuanHesaplayici::manuelMi($faaliyet)) {
+            throw ValidationException::withMessages([
+                'faaliyet_id' => 'Bu faaliyet otomatik puanlanıyor, elle puan verilemez.',
+            ]);
+        }
+
+        // Faaliyet gönderimin dönemine ait olmalı - başka dönemin faaliyetine
+        // puan yazılması raporu sessizce bozardı.
+        if ($faaliyet->donem_id !== $gonderim->donemAy?->donem_id) {
+            throw ValidationException::withMessages([
+                'faaliyet_id' => 'Bu faaliyet gönderimin ait olduğu döneme ait değil.',
+            ]);
+        }
+
+        $tavan = PuanHesaplayici::maxPuan($faaliyet);
+
+        if ($data['puan'] > $tavan) {
+            throw ValidationException::withMessages([
+                'puan' => "Bu faaliyet için verilebilecek en yüksek puan {$tavan}.",
+            ]);
+        }
+
+        $degerlendirme = FaaliyetDegerlendirme::updateOrCreate(
+            ['ay_gonderim_id' => $gonderim->id, 'faaliyet_id' => $faaliyet->id],
+            [
+                'puan'             => $data['puan'],
+                'not'              => $data['not'] ?? null,
+                'degerlendiren_id' => $request->user()->id,
+            ],
+        );
+
+        return response()->json($degerlendirme->fresh(['faaliyet:id,title,puan,kriter_turu']));
+    }
+
     private function assertMerkezErisimi(Request $request, AyGonderim $gonderim): void
     {
         $donem = $gonderim->donemAy?->donem;
@@ -189,6 +244,7 @@ class GonderimController extends Controller
             'donemAy:id,name,sira,start_date,end_date,acik_override,donem_id',
             'gonderen:id,name',
             'degerlendiren:id,name',
+            'degerlendirmeler:id,ay_gonderim_id,faaliyet_id,puan,not',
         ]);
     }
 }

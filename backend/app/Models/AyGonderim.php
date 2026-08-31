@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -50,6 +51,11 @@ class AyGonderim extends Model
     public function donemAy(): BelongsTo
     {
         return $this->belongsTo(DonemAy::class, 'donem_ay_id');
+    }
+
+    public function degerlendirmeler(): HasMany
+    {
+        return $this->hasMany(FaaliyetDegerlendirme::class, 'ay_gonderim_id');
     }
 
     public function sube(): BelongsTo

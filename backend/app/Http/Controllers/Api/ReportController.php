@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Donem;
 use App\Models\Faaliyet;
+use App\Models\FaaliyetDegerlendirme;
 use App\Models\FaaliyetKayit;
 use App\Models\Sube;
 use App\Support\BirimKapsami;
+use App\Support\PuanHesaplayici;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -57,15 +59,45 @@ class ReportController extends Controller
         }
     }
 
+    /**
+     * Merkezin elle puanladığı faaliyetlerin dönem toplamı: [sube_id][faaliyet_id] => puan.
+     *
+     * Değerlendirme ay bazında yapılır; dönem raporunda aylık puanlar toplanır ve
+     * PuanHesaplayici tarafından faaliyetin tavanında kesilir - "sayi" türünde
+     * kayıtların birikip hedefte tavanlanmasıyla aynı mantık.
+     *
+     * @return array<int, array<int, int>>
+     */
+    private function manuelPuanlar(Donem $donem, $faaliyetIds): array
+    {
+        $satirlar = FaaliyetDegerlendirme::query()
+            ->join('ay_gonderimleri', 'ay_gonderimleri.id', '=', 'faaliyet_degerlendirmeleri.ay_gonderim_id')
+            ->join('donem_aylar', 'donem_aylar.id', '=', 'ay_gonderimleri.donem_ay_id')
+            ->where('donem_aylar.donem_id', $donem->id)
+            ->whereNull('ay_gonderimleri.deleted_at')
+            ->whereIn('faaliyet_degerlendirmeleri.faaliyet_id', $faaliyetIds)
+            ->groupBy('ay_gonderimleri.sube_id', 'faaliyet_degerlendirmeleri.faaliyet_id')
+            ->selectRaw('ay_gonderimleri.sube_id, faaliyet_degerlendirmeleri.faaliyet_id, SUM(faaliyet_degerlendirmeleri.puan) as toplam')
+            ->get();
+
+        $harita = [];
+        foreach ($satirlar as $satir) {
+            $harita[(int) $satir->sube_id][(int) $satir->faaliyet_id] = (int) $satir->toplam;
+        }
+
+        return $harita;
+    }
+
     private function buildReport(Donem $donem): array
     {
         $donem->loadMissing(['aylar', 'subeler:id,name']);
 
         $subeQuery = $donem->tum_subeler ? Sube::query() : $donem->subeler();
 
+        // uye_sayisi oran tipi kriterlerde şube büyüklüğüne göre normalize etmek için gerekli.
         $subeler = $subeQuery->where('subeler.status', 'active')
             ->orderBy('subeler.name')
-            ->get(['subeler.id', 'subeler.name']);
+            ->get(['subeler.id', 'subeler.name', 'subeler.uye_sayisi']);
         $subeIds = $subeler->pluck('id');
         $subeSayisi = $subeler->count();
 
@@ -76,6 +108,8 @@ class ReportController extends Controller
         $kayitlar = FaaliyetKayit::whereIn('faaliyet_id', $faaliyetIds)
             ->whereIn('sube_id', $subeIds)
             ->get(['id', 'faaliyet_id', 'sube_id', 'donem_ay_id']);
+
+        $manuelPuanlar = $this->manuelPuanlar($donem, $faaliyetIds);
 
         // Tek geçişte [sube_id][faaliyet_id] => adet haritası - şube/faaliyet
         // bazlı özetler ve matris görünümü hepsi buradan O(1) okur.
@@ -93,13 +127,18 @@ class ReportController extends Controller
             }
         }
 
-        $subeBazli = $subeler->map(function (Sube $sube) use ($faaliyetler, $adetMatrisi, $maxPuanToplam) {
+        $subeBazli = $subeler->map(function (Sube $sube) use ($faaliyetler, $adetMatrisi, $maxPuanToplam, $manuelPuanlar) {
             $subeAdetleri = $adetMatrisi[$sube->id] ?? [];
             $toplamPuan = 0;
             $kayitSayisi = 0;
             foreach ($faaliyetler as $f) {
                 $adet = $subeAdetleri[$f->id] ?? 0;
-                $toplamPuan += min($adet * $f->puan, $f->max_puan);
+                $toplamPuan += PuanHesaplayici::puan(
+                    $f,
+                    $adet,
+                    $sube->uye_sayisi,
+                    $manuelPuanlar[$sube->id][$f->id] ?? null,
+                );
                 $kayitSayisi += $adet;
             }
 
@@ -134,12 +173,17 @@ class ReportController extends Controller
             $subeAdetleri = $adetMatrisi[$sube->id] ?? [];
             foreach ($faaliyetler as $f) {
                 $adet = $subeAdetleri[$f->id] ?? 0;
+                $katki = PuanHesaplayici::puan($f, $adet, $sube->uye_sayisi, $manuelPuanlar[$sube->id][$f->id] ?? null);
+                $maxPuan = $f->max_puan;
+
                 $subeFaaliyetMatrisi[] = [
                     'sube_id'       => $sube->id,
                     'faaliyet_id'   => $f->id,
                     'adet'          => $adet,
-                    'puan_katkisi'  => min($adet * $f->puan, $f->max_puan),
-                    'doluluk_orani' => $f->hedef > 0 ? round(min($adet, $f->hedef) / $f->hedef, 4) : 0,
+                    'puan_katkisi'  => $katki,
+                    // Doluluk artık puan üzerinden: adet tabanlı oran evet/hayır
+                    // ve manuel gibi türlerde anlamsız kalıyordu.
+                    'doluluk_orani' => $maxPuan > 0 ? round($katki / $maxPuan, 4) : 0,
                 ];
             }
         }

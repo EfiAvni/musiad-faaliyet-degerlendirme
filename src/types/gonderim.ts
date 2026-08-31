@@ -17,6 +17,8 @@ export type Gonderim = {
   } | null
   gonderen?: { id: number; name: string } | null
   degerlendiren?: { id: number; name: string } | null
+  /** Merkezin elle puanladığı faaliyetler; yalnızca kriter türü "manuel" olanlar. */
+  degerlendirmeler?: { id: number; faaliyet_id: number; puan: number; not: string | null }[]
 }
 
 /** Gönderim kaydı olmayan ay taslaktır - backend o ay için satır tutmaz. */
