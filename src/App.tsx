@@ -1,6 +1,7 @@
 import { useState, lazy, Suspense } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissions } from '@/hooks/usePermissions'
+import { useSayiAlaniKaydirmaKorumasi } from '@/hooks/useSayiAlaniKaydirmaKorumasi'
 import type { Page } from '@/types/navigation'
 import { pageLabels } from '@/utils/constants'
 import { PlaceholderPage } from '@/components/common/PlaceholderPage'
@@ -29,6 +30,8 @@ const RaporlarPage = lazy(() =>
 // ─── App Shell ─────────────────────────────────────────────────────────────────
 
 export default function App() {
+  useSayiAlaniKaydirmaKorumasi()
+
   const [page, setPage] = useState<Page>('login')
   const { currentUser, authChecked, login: handleLogin, logout: handleLogout } = useAuth(setPage)
   const { isSuperAdmin, isBirimYoneticisi } = usePermissions(currentUser)

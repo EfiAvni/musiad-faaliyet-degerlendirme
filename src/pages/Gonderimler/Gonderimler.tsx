@@ -273,8 +273,10 @@ export function GonderimlerPage() {
                       <p className="text-sm font-medium text-gray-800">{f.title}</p>
                       <p className="text-xs text-gray-400">En fazla {f.max_puan} puan</p>
                     </div>
+                    {/* inputCls w-full taşıyor; sınıf sırası Tailwind'de üstünlük
+                        belirlemediği için genişliği doğrudan değiştiriyoruz. */}
                     <input type="number" min="0" max={f.max_puan} placeholder="0"
-                      className={`${inputCls} w-24 flex-shrink-0`}
+                      className={`${inputCls.replace('w-full', 'w-24')} flex-shrink-0`}
                       value={puanlar[f.id] ?? ''}
                       onChange={e => setPuanlar({ ...puanlar, [f.id]: e.target.value })} />
                   </div>
