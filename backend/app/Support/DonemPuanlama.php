@@ -32,7 +32,12 @@ class DonemPuanlama
 
     public int $maxPuanToplam = 0;
 
-    public function __construct(public Donem $donem)
+    /**
+     * @param  int|null  $sadeceSubeId  Yalnızca bu şube hesaplansın. Şube kendi
+     *   performansını sorarken 198 şubenin kaydını yüklemenin anlamı yok; sonuç
+     *   aynı, çünkü puanlama şubeler arası bir bağ kurmuyor.
+     */
+    public function __construct(public Donem $donem, private ?int $sadeceSubeId = null)
     {
         $this->hazirla();
     }
@@ -67,6 +72,12 @@ class DonemPuanlama
      * Yalnızca aktif şubeleri almak, dönem ortasında pasife alınan bir şubeyi
      * raporun tamamından siliyordu: girdiği kayıtlar duruyor ama ne satırı ne
      * puanı görünüyor, dönem ortalaması da o şube hiç yokmuş gibi çıkıyordu.
+     * Aynı sebeple şube, pasife alındıktan sonra da kendi geçmiş performansını
+     * görebilmelidir - bu yüzden sadeceSubeId filtresi birleşimin üstüne biner.
+     *
+     * Filtre dönem kapsamının yerine geçmez: kapsamda olmayan ve döneme kaydı
+     * bulunmayan bir şube id'si verilirse liste boş döner, sessizce kapsam
+     * açılmaz.
      *
      * @return Collection<int, Sube>
      */
@@ -77,9 +88,14 @@ class DonemPuanlama
         // uye_sayisi oran tipi kriterlerde gerekli.
         $alanlar = ['subeler.id', 'subeler.name', 'subeler.uye_sayisi'];
 
-        $kapsam = (clone $kapsamQuery)->where('subeler.status', 'active')->get($alanlar);
+        $kapsam = (clone $kapsamQuery)
+            ->where('subeler.status', 'active')
+            ->when($this->sadeceSubeId !== null, fn ($q) => $q->where('subeler.id', $this->sadeceSubeId))
+            ->get($alanlar);
 
+        // Tek şube sorulduğunda 198 şubenin kaydını taramanın anlamı yok.
         $kayitliIds = FaaliyetKayit::whereIn('faaliyet_id', $faaliyetIds)
+            ->when($this->sadeceSubeId !== null, fn ($q) => $q->where('sube_id', $this->sadeceSubeId))
             ->distinct()
             ->pluck('sube_id');
 
@@ -183,6 +199,7 @@ class DonemPuanlama
             ->where('donem_aylar.donem_id', $this->donem->id)
             ->whereNull('ay_gonderimleri.deleted_at')
             ->whereIn('faaliyet_degerlendirmeleri.faaliyet_id', $faaliyetIds)
+            ->when($this->sadeceSubeId !== null, fn ($q) => $q->where('ay_gonderimleri.sube_id', $this->sadeceSubeId))
             ->groupBy('ay_gonderimleri.sube_id', 'faaliyet_degerlendirmeleri.faaliyet_id')
             ->selectRaw('ay_gonderimleri.sube_id, faaliyet_degerlendirmeleri.faaliyet_id, SUM(faaliyet_degerlendirmeleri.puan) as toplam')
             ->get();

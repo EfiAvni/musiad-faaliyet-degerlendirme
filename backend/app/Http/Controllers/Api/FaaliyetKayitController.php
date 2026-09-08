@@ -42,6 +42,14 @@ class FaaliyetKayitController extends Controller
             $query->where('faaliyet_id', $request->integer('faaliyet_id'));
         }
 
+        // Şube geçmiş dönemlerini de görebildiği için (doküman bölüm 13) tüm
+        // kayıtları çekip istemcide ayıklamak listeyi yıllar geçtikçe büyütür.
+        // Filtre yetki değil kapsam daraltmasıdır; erişim yukarıda belirlendi.
+        if ($request->filled('donem_id')) {
+            $donemId = $request->integer('donem_id');
+            $query->whereHas('faaliyet', fn ($q) => $q->where('donem_id', $donemId));
+        }
+
         return response()->json($query->get());
     }
 

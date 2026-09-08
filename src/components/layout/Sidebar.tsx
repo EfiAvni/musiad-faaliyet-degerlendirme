@@ -1,5 +1,5 @@
 import {
-  LogOut, LayoutDashboard, Building2, UserCog, ClipboardList, Calendar, BarChart3, CheckSquare, Inbox,
+  LogOut, LayoutDashboard, Building2, UserCog, ClipboardList, Calendar, BarChart3, CheckSquare, Inbox, TrendingUp,
 } from 'lucide-react'
 import type { Role, User } from '@/types/auth'
 import type { Page } from '@/types/navigation'
@@ -35,6 +35,7 @@ const navByRole: Record<Role, NavItem[]> = {
   sube_yoneticisi: [
     { id: 'dashboard',     label: 'Dashboard',      icon: LayoutDashboard },
     { id: 'faaliyetlerim', label: 'Faaliyetlerim',  icon: CheckSquare },
+    { id: 'performansim',  label: 'Performansım',   icon: TrendingUp },
   ],
 }
 

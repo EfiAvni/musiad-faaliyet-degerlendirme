@@ -93,7 +93,7 @@ class SubeController extends Controller
         // Puanlama tek kaynaktan gelir; burada yalnızca tek şubenin satırı
         // ayıklanır. Önceden bu döngü rapordan kopyalanmıştı ve bir kriter
         // türü eklendiğinde ikisinin ayrışması an meselesiydi.
-        $puanlama = new DonemPuanlama($donem);
+        $puanlama = new DonemPuanlama($donem, $sube->id);
 
         $toplam = 0;
         $detaylar = $puanlama->faaliyetler->map(function ($f) use ($puanlama, $sube, &$toplam) {
