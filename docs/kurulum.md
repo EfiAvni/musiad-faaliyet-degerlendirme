@@ -227,6 +227,14 @@ HSTS_ALT_ALANLAR=false    # dikkat: aşağıya bakın
 
 Web sunucusunda `http → https` kalıcı yönlendirmesi de kurulmalıdır; HSTS ancak kullanıcı bir kez https ile bağlandıktan sonra korur.
 
+### Projeye dahil edilen kitaplık
+
+Excel okuma kitaplığı (SheetJS) `public/vendor/xlsx.full.min.js` altında projeyle birlikte gelir ve uygulamanın kendi sunucusundan yüklenir. Çalışma anında hiçbir dış CDN'e bağlanılmaz.
+
+Kitaplık şube listesi içe aktarılırken, yalnızca o an indirilir — uygulama açılışını yavaşlatmaz.
+
+Güncellemek gerekirse dosya [sheetjs.com](https://cdn.sheetjs.com/) üzerinden alınıp aynı yola konur. Sürüm yükseltmesi elle takip edilmelidir; bağımlılık denetimlerine (`npm audit`) girmez.
+
 ### Hız sınırları
 
 Kimliği doğrulanmış uçlar kullanıcı başına sınırlıdır:
