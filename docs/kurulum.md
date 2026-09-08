@@ -70,6 +70,9 @@ CORS_ALLOWED_ORIGINS=https://faaliyet.musiad.org.tr
 
 # Oturum jetonu ömrü, dakika (varsayılan 720 = 12 saat)
 SANCTUM_EXPIRATION=720
+
+# Ters vekilin adresi — ayrıntı için Güvenlik bölümüne bakın
+TRUSTED_PROXIES=127.0.0.1,::1
 ```
 
 > **`APP_DEBUG=false` şart.** Açık kalırsa hata sayfaları veritabanı bilgilerini ve dosya yollarını dışarıya gösterir.
@@ -186,6 +189,57 @@ curl -i https://api.faaliyet.musiad.org.tr/api/auth/login \
 
 ---
 
+## Güvenlik
+
+### Ters vekil (zorunlu)
+
+Nginx veya Apache arkasında çalışıyorsanız `TRUSTED_PROXIES` **doğru ayarlanmalıdır.**
+
+```ini
+# Vekil aynı makinedeyse (en yaygın kurulum)
+TRUSTED_PROXIES=127.0.0.1,::1
+
+# Vekil başka bir sunucudaysa
+TRUSTED_PROXIES=10.0.0.5
+
+# Yük dengeleyici arkasındaysanız ve uygulamaya SADECE onun üzerinden erişilebiliyorsa
+TRUSTED_PROXIES=*
+```
+
+Yanlış ayarlandığında iki şey bozulur:
+
+- **Boş bırakılırsa** Laravel her isteğin vekilden geldiğini sanır. Giriş ekranındaki IP başına sınır tüm kullanıcılar için tek kovaya düşer — bir saldırgan dakikada 20 istekle herkesin girişini kilitleyebilir. Günlüklere de gerçek IP yazılmaz.
+- **`*` yapılırsa ve uygulamaya vekil dışından da erişilebiliyorsa** herkes `X-Forwarded-For` başlığıyla kendi IP'sini uydurup kilidini atlatabilir.
+
+### Yanıt başlıkları
+
+Uygulama `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` ve dar bir `Content-Security-Policy` gönderir; `X-Powered-By` kaldırılır. Ek ayar gerekmez.
+
+**HSTS** yalnızca https üzerinden gönderilir:
+
+```ini
+HSTS_AKTIF=true
+HSTS_SURE=31536000        # 1 yıl
+HSTS_ALT_ALANLAR=false    # dikkat: aşağıya bakın
+```
+
+> `HSTS_ALT_ALANLAR=true` yapmadan önce **bütün alt alanların https sunduğundan emin olun.** Tarayıcı bu talimatı süre boyunca hatırlar; https'e geçmemiş bir alt alan erişilemez hale gelir ve bunu geri almak kolay değildir.
+
+Web sunucusunda `http → https` kalıcı yönlendirmesi de kurulmalıdır; HSTS ancak kullanıcı bir kez https ile bağlandıktan sonra korur.
+
+### Hız sınırları
+
+Kimliği doğrulanmış uçlar kullanıcı başına sınırlıdır:
+
+```ini
+HIZ_LIMITI_GENEL=120      # dakikada istek
+HIZ_LIMITI_RAPORLAR=20    # raporlar en pahalı uçlar
+```
+
+Giriş ekranının kendi kilidi bunlardan ayrıdır (e-posta + IP başına 5 deneme, 15 dakika). Sınır kullanıcı kimliğine göre tutulur, IP'ye göre değil — aynı kurumdan çalışan iki kullanıcı birbirinin hakkını yemez.
+
+---
+
 ## Performans
 
 Uygulamanın hızını belirleyen şey sorgular değil, **PHP'nin her istekte Laravel'i yeniden derleyip derlemediği.** Ölçüm (aynı sunucu, aynı veri):
@@ -283,3 +337,7 @@ Migration çalıştırmadan önce veritabanı yedeği alın.
 **Sayfalar geç açılıyor, her tıklama bekletiyor** — neredeyse her zaman OPcache kapalıdır. `php -m | grep -i opcache` ile kontrol edin; kuruluysa PHP-FPM'i yeniden başlatmayı unutmayın. Ardından `config:cache` çalıştırılmış mı bakın. [Performans](#performans) bölümünde ölçümler var.
 
 **Geliştirme ortamında her istek iki kez gidiyor** — `React.StrictMode` etkileri bilerek iki kez çalıştırır. Üretim derlemesinde olmaz, bir sorun değildir.
+
+**Kullanıcılar "çok fazla istek" (429) hatası alıyor** — hız sınırına takılıyorlar. Normal kullanımda dakikada 120 istek fazlasıyla yeterlidir; sık görülüyorsa ya bir istemci döngüye girmiştir ya da `TRUSTED_PROXIES` yanlış olduğu için sınır herkes adına tek kovada tutuluyordur. Önce vekil ayarını kontrol edin.
+
+**Giriş kayıtlarında hep aynı IP görünüyor** — `TRUSTED_PROXIES` ayarlanmamış. Vekilin adresi tanımlanana kadar gerçek istemci IP'si okunamaz.

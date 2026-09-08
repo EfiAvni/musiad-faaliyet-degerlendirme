@@ -20,7 +20,9 @@ use Illuminate\Support\Facades\Route;
 Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:20,1');
 
 // Protected routes
-Route::middleware('auth:sanctum')->group(function () {
+// throttle:api — jetonu ele geçirilmiş ya da hatalı bir istemci sistemi
+// meşgul edemesin diye kullanıcı başına genel sınır.
+Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
 
@@ -57,9 +59,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/subeler/{sube}/puan-ozeti', [SubeController::class, 'puanOzeti']);
 
         // Yillik önce tanımlanmalı — yoksa {donem} parametresi "yillik"i yakalar
-        Route::get('/raporlar/yillik', [YillikRaporController::class, 'show']);
-        Route::get('/raporlar/{donem}', [ReportController::class, 'show']);
-        Route::get('/raporlar/{donem}/pdf', [ReportController::class, 'pdf']);
+        // Raporlar en pahalı uçlar; genel sınırın üstüne daha dar bir sınır.
+        Route::middleware('throttle:raporlar')->group(function () {
+            Route::get('/raporlar/yillik', [YillikRaporController::class, 'show']);
+            Route::get('/raporlar/{donem}', [ReportController::class, 'show']);
+            Route::get('/raporlar/{donem}/pdf', [ReportController::class, 'pdf']);
+        });
     });
 
     // Gönderim akışı (doküman bölüm 11-12)
