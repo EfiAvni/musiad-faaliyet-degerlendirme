@@ -192,7 +192,7 @@
             <th class="num">Puan</th>
             <th class="num">Hedef</th>
             <th class="num">Toplam Kayıt</th>
-            <th class="num">Katılan Şube</th>
+            <th class="num">Puan Alan Şube</th>
             <th>Doluluk</th>
         </tr>
         </thead>

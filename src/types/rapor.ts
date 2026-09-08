@@ -29,6 +29,8 @@ export type RaporFaaliyet = {
   hedef: number
   max_puan: number
   toplam_kayit: number
+  toplam_puan: number
+  /** Bu kriterden puan almış şube sayısı — manuel kriterde kayıt olmadan da puan alınabilir. */
   katilan_sube_sayisi: number
   doluluk_orani: number
 }

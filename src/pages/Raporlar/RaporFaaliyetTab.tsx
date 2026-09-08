@@ -35,7 +35,7 @@ function buildColumns(toplamSube: number): DataTableColumn<RaporFaaliyet>[] {
       render: f => f.toplam_kayit,
     },
     {
-      header: 'Katılan Şube',
+      header: 'Puan Alan Şube',
       headerClassName: 'px-5 py-3 font-medium text-right',
       cellClassName: 'px-5 py-2.5 text-right text-gray-600',
       render: f => `${f.katilan_sube_sayisi} / ${toplamSube}`,
@@ -58,15 +58,17 @@ function buildColumns(toplamSube: number): DataTableColumn<RaporFaaliyet>[] {
 
 export function RaporFaaliyetTab({ rapor }: { rapor: DonemRaporu }) {
   const { faaliyet_bazli, genel } = rapor
-  const chartData = faaliyet_bazli.slice(0, 10).map(f => ({ name: f.title, kayit: f.toplam_kayit }))
+  // Grafik puan katkısını gösterir: kayıt sayısı yalnızca "sayi" türünde
+  // faaliyetler arasında karşılaştırılabilir bir büyüklük, puan ise hepsinde.
+  const chartData = faaliyet_bazli.slice(0, 10).map(f => ({ name: f.title, puan: f.toplam_puan }))
   const chartHeight = Math.max(120, chartData.length * 34)
   const columns = buildColumns(genel.toplam_sube)
 
   return (
     <div className="space-y-5">
       <Card className="p-5">
-        <h3 className="text-sm font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Instrument Sans, sans-serif' }}>Faaliyet Bazlı Kayıt Sayısı</h3>
-        <p className="text-xs text-gray-400 mb-4">{faaliyet_bazli.length > 10 ? 'İlk 10 faaliyet — tam liste aşağıdaki tabloda' : 'Toplam kayıt sayısına göre sıralı'}</p>
+        <h3 className="text-sm font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Instrument Sans, sans-serif' }}>Faaliyet Bazlı Puan Katkısı</h3>
+        <p className="text-xs text-gray-400 mb-4">{faaliyet_bazli.length > 10 ? 'İlk 10 faaliyet — tam liste aşağıdaki tabloda' : 'Tüm şubelerin topladığı puana göre sıralı'}</p>
         {chartData.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-10">Bu döneme tanımlanmış faaliyet bulunmuyor.</p>
         ) : (
@@ -75,8 +77,8 @@ export function RaporFaaliyetTab({ rapor }: { rapor: DonemRaporu }) {
               <CartesianGrid horizontal={false} stroke="#e1e0d9" />
               <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: '#898781' }} axisLine={{ stroke: '#c3c2b7' }} tickLine={false} />
               <YAxis type="category" dataKey="name" width={160} tick={{ fontSize: 11, fill: '#52514e' }} axisLine={false} tickLine={false} />
-              <Tooltip content={<RaporChartTooltip suffix=" kayıt" />} cursor={{ fill: '#f9f9f7' }} />
-              <Bar dataKey="kayit" fill={RAPOR_RENK} radius={[0, 4, 4, 0]} maxBarSize={20} />
+              <Tooltip content={<RaporChartTooltip suffix=" puan" />} cursor={{ fill: '#f9f9f7' }} />
+              <Bar dataKey="puan" fill={RAPOR_RENK} radius={[0, 4, 4, 0]} maxBarSize={20} />
             </BarChart>
           </ResponsiveContainer>
         )}

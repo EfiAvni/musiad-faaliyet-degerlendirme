@@ -69,6 +69,14 @@ class FaaliyetKayitController extends Controller
             ]);
         }
 
+        // Pasif kriter puanlamanın dışında; kayıt kabul etmek şubeyi karşılığı
+        // olmayan bir işe sokardı.
+        if ($faaliyet->pasifMi()) {
+            throw ValidationException::withMessages([
+                'faaliyet_id' => 'Bu faaliyet pasife alınmış, yeni kayıt eklenemez.',
+            ]);
+        }
+
         if (!$faaliyet->donem->subeErisimVarMi($user->sube_id)) {
             throw ValidationException::withMessages([
                 'faaliyet_id' => 'Bu faaliyet şubenizin kapsamında olan bir döneme ait değil.',

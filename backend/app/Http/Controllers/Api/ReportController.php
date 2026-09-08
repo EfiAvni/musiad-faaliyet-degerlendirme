@@ -123,7 +123,7 @@ class ReportController extends Controller
         $subeIds = $subeler->pluck('id');
         $subeSayisi = $subeler->count();
 
-        $faaliyetler = Faaliyet::where('donem_id', $donem->id)->get();
+        $faaliyetler = Faaliyet::where('donem_id', $donem->id)->degerlendirmeye()->get();
         $faaliyetIds = $faaliyetler->pluck('id');
         $maxPuanToplam = (int) $faaliyetler->sum(fn (Faaliyet $f) => $f->max_puan);
 
@@ -141,62 +141,47 @@ class ReportController extends Controller
         }
 
         $faaliyetToplamAdet = [];
-        $faaliyetSubeSayisi = [];
         foreach ($adetMatrisi as $subeAdetleri) {
             foreach ($subeAdetleri as $faaliyetId => $adet) {
                 $faaliyetToplamAdet[$faaliyetId] = ($faaliyetToplamAdet[$faaliyetId] ?? 0) + $adet;
-                $faaliyetSubeSayisi[$faaliyetId] = ($faaliyetSubeSayisi[$faaliyetId] ?? 0) + 1;
             }
         }
 
-        $subeBazli = $subeler->map(function (Sube $sube) use ($faaliyetler, $adetMatrisi, $maxPuanToplam, $manuelPuanlar) {
+        // Faaliyet bazlı özet puan üzerinden kurulur. Adet tabanlı sayım
+        // yalnızca "sayi" türünde anlamlıydı: evet/hayır'da tek şubenin üç
+        // kaydı oranı %300'e çıkarıyor, manuelde ise merkez tam puan verse
+        // bile hiç kayıt olmadığı için %0 görünüyordu. Matris görünümü aynı
+        // sebeple puana çevrilmişti; iki sekme artık aynı şeyi söylüyor.
+        // Şube × faaliyet puanı tek geçişte hesaplanır; şube özeti, faaliyet
+        // özeti ve matris üçü de buradan beslenir. Önceden her biri kendi
+        // döngüsünü kurup aynı puanı üç kez hesaplıyordu.
+        $subeBazliHam = [];
+        $faaliyetToplamPuan = [];
+        $faaliyetPuanAlanSube = [];
+        $subeFaaliyetMatrisi = [];
+
+        foreach ($subeler as $sube) {
             $subeAdetleri = $adetMatrisi[$sube->id] ?? [];
-            $toplamPuan = 0;
-            $kayitSayisi = 0;
+            $subeToplamPuan = 0;
+            $subeKayitSayisi = 0;
+
             foreach ($faaliyetler as $f) {
                 $adet = $subeAdetleri[$f->id] ?? 0;
-                $toplamPuan += PuanHesaplayici::puan(
+                $katki = PuanHesaplayici::puan(
                     $f,
                     $adet,
                     $sube->uye_sayisi,
                     $manuelPuanlar[$sube->id][$f->id] ?? null,
                 );
-                $kayitSayisi += $adet;
-            }
-
-            return [
-                'sube_id'          => $sube->id,
-                'sube_adi'         => $sube->name,
-                'toplam_puan'      => $toplamPuan,
-                'max_puan'         => $maxPuanToplam,
-                'tamamlanma_orani' => $maxPuanToplam > 0 ? round($toplamPuan / $maxPuanToplam, 4) : 0,
-                'kayit_sayisi'     => $kayitSayisi,
-            ];
-        })->sortByDesc('toplam_puan')->values();
-
-        $faaliyetBazli = $faaliyetler->map(function (Faaliyet $f) use ($faaliyetToplamAdet, $faaliyetSubeSayisi, $subeSayisi) {
-            $toplamKayit = $faaliyetToplamAdet[$f->id] ?? 0;
-            $beklenenToplam = $subeSayisi * max($f->hedef, 1);
-
-            return [
-                'faaliyet_id'          => $f->id,
-                'title'                => $f->title,
-                'puan'                 => $f->puan,
-                'hedef'                => $f->hedef,
-                'max_puan'             => $f->max_puan,
-                'toplam_kayit'         => $toplamKayit,
-                'katilan_sube_sayisi'  => $faaliyetSubeSayisi[$f->id] ?? 0,
-                'doluluk_orani'        => $beklenenToplam > 0 ? round($toplamKayit / $beklenenToplam, 4) : 0,
-            ];
-        })->sortByDesc('toplam_kayit')->values();
-
-        $subeFaaliyetMatrisi = [];
-        foreach ($subeler as $sube) {
-            $subeAdetleri = $adetMatrisi[$sube->id] ?? [];
-            foreach ($faaliyetler as $f) {
-                $adet = $subeAdetleri[$f->id] ?? 0;
-                $katki = PuanHesaplayici::puan($f, $adet, $sube->uye_sayisi, $manuelPuanlar[$sube->id][$f->id] ?? null);
                 $maxPuan = $f->max_puan;
+
+                $subeToplamPuan += $katki;
+                $subeKayitSayisi += $adet;
+
+                $faaliyetToplamPuan[$f->id] = ($faaliyetToplamPuan[$f->id] ?? 0) + $katki;
+                if ($katki > 0) {
+                    $faaliyetPuanAlanSube[$f->id] = ($faaliyetPuanAlanSube[$f->id] ?? 0) + 1;
+                }
 
                 $subeFaaliyetMatrisi[] = [
                     'sube_id'       => $sube->id,
@@ -208,7 +193,37 @@ class ReportController extends Controller
                     'doluluk_orani' => $maxPuan > 0 ? round($katki / $maxPuan, 4) : 0,
                 ];
             }
+
+            $subeBazliHam[] = [
+                'sube_id'          => $sube->id,
+                'sube_adi'         => $sube->name,
+                'toplam_puan'      => $subeToplamPuan,
+                'max_puan'         => $maxPuanToplam,
+                'tamamlanma_orani' => $maxPuanToplam > 0 ? round($subeToplamPuan / $maxPuanToplam, 4) : 0,
+                'kayit_sayisi'     => $subeKayitSayisi,
+            ];
         }
+
+        $subeBazli = collect($subeBazliHam)->sortByDesc('toplam_puan')->values();
+
+        $faaliyetBazli = $faaliyetler->map(function (Faaliyet $f) use ($faaliyetToplamAdet, $faaliyetToplamPuan, $faaliyetPuanAlanSube, $subeSayisi) {
+            $toplamPuan = $faaliyetToplamPuan[$f->id] ?? 0;
+            $beklenenPuan = $subeSayisi * $f->max_puan;
+
+            return [
+                'faaliyet_id'          => $f->id,
+                'title'                => $f->title,
+                'puan'                 => $f->puan,
+                'hedef'                => $f->hedef,
+                'max_puan'             => $f->max_puan,
+                'toplam_kayit'         => $faaliyetToplamAdet[$f->id] ?? 0,
+                'toplam_puan'          => $toplamPuan,
+                // Kayıt giren şube değil puan alan şube: manuel kriterde şube
+                // hiç kayıt girmeden merkezin verdiği puanla yer alabiliyor.
+                'katilan_sube_sayisi'  => $faaliyetPuanAlanSube[$f->id] ?? 0,
+                'doluluk_orani'        => $beklenenPuan > 0 ? round($toplamPuan / $beklenenPuan, 4) : 0,
+            ];
+        })->sortByDesc('toplam_puan')->values();
 
         $aylikTrend = $donem->aylar->map(fn ($ay) => [
             'ay_id'        => $ay->id,

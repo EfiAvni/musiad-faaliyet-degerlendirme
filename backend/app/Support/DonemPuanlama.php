@@ -46,7 +46,7 @@ class DonemPuanlama
             ->orderBy('subeler.name')
             ->get(['subeler.id', 'subeler.name', 'subeler.uye_sayisi']);
 
-        $this->faaliyetler = Faaliyet::where('donem_id', $this->donem->id)->get();
+        $this->faaliyetler = Faaliyet::where('donem_id', $this->donem->id)->degerlendirmeye()->get();
         $this->maxPuanToplam = (int) $this->faaliyetler->sum(fn (Faaliyet $f) => $f->max_puan);
 
         $faaliyetIds = $this->faaliyetler->pluck('id');

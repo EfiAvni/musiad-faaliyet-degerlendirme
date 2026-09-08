@@ -31,6 +31,9 @@ class FaaliyetController extends Controller
         BirimKapsami::donemIliskisineGore($query, $user);
 
         if (BirimKapsami::subeIleSinirliMi($user)) {
+            // Şube pasif kritere kayıt giremiyor; listede de görmemeli.
+            $query->degerlendirmeye();
+
             $query->whereHas('donem', function ($q) use ($user) {
                 $q->where('tum_subeler', true);
                 if ($user->sube_id) {
@@ -60,14 +63,16 @@ class FaaliyetController extends Controller
             'kategori'        => ['nullable', Rule::in(KriterKategorileri::secilebilirler())],
         ]);
 
-        $data['kriter_turu'] = $data['kriter_turu'] ?? PuanHesaplayici::SAYI;
-        $this->assertKriterTutarli($data['kriter_turu'], $data);
-
+        // Yetki önce: erişilemeyen bir dönemin yükünü doğrulamak, kapsam dışı
+        // kullanıcıya 403 yerine alan bazlı hata mesajı döndürür.
         $donem = Donem::findOrFail($data['donem_id']);
 
         if (!BirimKapsami::donemeErisebilirMi($request->user(), $donem)) {
             abort(403, 'Bu dönem sizin biriminizin kapsamında değil.');
         }
+
+        $data['kriter_turu'] = $data['kriter_turu'] ?? PuanHesaplayici::SAYI;
+        $this->assertKriterTutarli($data['kriter_turu'], $data);
 
         if ($donem->status === 'completed') {
             throw ValidationException::withMessages([
@@ -112,7 +117,14 @@ class FaaliyetController extends Controller
         ]);
 
         $this->assertPuanlamaDegistirilebilir($faaliyet, $data);
-        $this->assertKriterTutarli($data['kriter_turu'] ?? $faaliyet->kriter_turu, $data + $faaliyet->toArray());
+
+        // Tutarlılık yalnızca puanlama alanlarına dokunulduğunda denetlenir.
+        // Kural sıkılaştığında geriye dönük olarak eksik kalmış eski kriterler
+        // var; her denetlenseydi başlığını düzeltmek bile mümkün olmazdı -
+        // puan ve hedef, kaydı olan faaliyette zaten kilitli.
+        if (array_intersect(['kriter_turu', 'puan', 'hedef', 'kademeler'], array_keys($data))) {
+            $this->assertKriterTutarli($data['kriter_turu'] ?? $faaliyet->kriter_turu, $data + $faaliyet->toArray());
+        }
 
         if (isset($data['donem_id']) && $data['donem_id'] !== $faaliyet->donem_id) {
             $hedefDonem = Donem::findOrFail($data['donem_id']);
@@ -160,8 +172,24 @@ class FaaliyetController extends Controller
             ]);
         }
 
-        if (in_array($tur, [PuanHesaplayici::EVET_HAYIR, PuanHesaplayici::MANUEL, PuanHesaplayici::ORAN], true)
-            && (int) ($data['puan'] ?? 0) <= 0) {
+        // Sayı türünde tavan puan × hedef. Hedef sıfır kalırsa kriter dönem
+        // boyunca kayıt toplar, sonunda hem puanı hem tavanı sıfır çıkar -
+        // yani rapora hiç yansımadan görünmez olur. En sık kullanılan tür
+        // olduğu için bu boşluk en pahalıya mal olan boşluktu.
+        if ($tur === PuanHesaplayici::SAYI && (int) ($data['hedef'] ?? 0) <= 0) {
+            throw ValidationException::withMessages([
+                'hedef' => 'Sayı tipi kriterde hedef en az 1 olmalıdır (kaç kez yapılması bekleniyor).',
+            ]);
+        }
+
+        $puanGerektirenler = [
+            PuanHesaplayici::SAYI,
+            PuanHesaplayici::EVET_HAYIR,
+            PuanHesaplayici::MANUEL,
+            PuanHesaplayici::ORAN,
+        ];
+
+        if (in_array($tur, $puanGerektirenler, true) && (int) ($data['puan'] ?? 0) <= 0) {
             throw ValidationException::withMessages([
                 'puan' => 'Bu kriter türünde alınabilecek puan sıfırdan büyük olmalıdır.',
             ]);
