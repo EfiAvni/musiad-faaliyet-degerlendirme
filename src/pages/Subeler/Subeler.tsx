@@ -9,6 +9,7 @@ import { useModal } from '@/hooks/useModal'
 import { usePagination } from '@/hooks/usePagination'
 import { Pagination } from '@/components/common/Pagination'
 import { statusConfig } from '@/utils/constants'
+import { xlsxYukle } from '@/utils/xlsxYukle'
 import { PageHeader } from '@/components/common/PageHeader'
 import { Card } from '@/components/common/Card'
 import { Btn } from '@/components/common/Btn'
@@ -250,14 +251,7 @@ export function SubelerPage() {
       await sendToApi(rows)
     } else {
       try {
-        await new Promise<void>((resolve, reject) => {
-          if ((window as any).XLSX) { resolve(); return }
-          const s = document.createElement('script')
-          s.src = 'https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js'
-          s.onload = () => resolve(); s.onerror = () => reject()
-          document.head.appendChild(s)
-        })
-        const XLSX = (window as any).XLSX
+        const XLSX = await xlsxYukle()
         const wb = XLSX.read(await file.arrayBuffer())
         const ws = wb.Sheets[wb.SheetNames[0]]
         const data: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
