@@ -32,27 +32,61 @@ class PuanHesaplayici
      * @param  int       $adet         Şubenin bu faaliyete girdiği kayıt sayısı
      * @param  int|null  $uyeSayisi    Oran tipi kriterler için şubenin üye sayısı
      * @param  int|null  $manuelPuan   Merkezin verdiği puan (yalnızca manuel türde)
+     * @param  float     $donemOrani   Raporlanan ay aralığının dönemin kaçta kaçı
+     *                                 olduğu (1.0 = dönemin tamamı). Bkz. hedef().
      */
-    public static function puan(Faaliyet $faaliyet, int $adet, ?int $uyeSayisi = null, ?int $manuelPuan = null): int
-    {
+    public static function puan(
+        Faaliyet $faaliyet,
+        int $adet,
+        ?int $uyeSayisi = null,
+        ?int $manuelPuan = null,
+        float $donemOrani = 1.0,
+    ): int {
         return match ($faaliyet->kriter_turu) {
             self::EVET_HAYIR => $adet > 0 ? (int) $faaliyet->puan : 0,
-            self::ORAN       => self::oranPuani($faaliyet, $adet, $uyeSayisi),
-            self::KADEMELI   => self::kademePuani($faaliyet, $adet),
+            self::ORAN       => self::oranPuani($faaliyet, $adet, $uyeSayisi, $donemOrani),
+            self::KADEMELI   => self::kademePuani($faaliyet, $adet, $donemOrani),
             self::MANUEL     => min((int) ($manuelPuan ?? 0), self::maxPuan($faaliyet)),
-            default          => min($adet * (int) $faaliyet->puan, self::maxPuan($faaliyet)),
+            default          => min($adet * (int) $faaliyet->puan, self::maxPuan($faaliyet, $donemOrani)),
         };
     }
 
     /** Faaliyetten alınabilecek en yüksek puan - tamamlanma oranlarının paydası. */
-    public static function maxPuan(Faaliyet $faaliyet): int
+    public static function maxPuan(Faaliyet $faaliyet, float $donemOrani = 1.0): int
     {
         return match ($faaliyet->kriter_turu) {
             // Yapıldı/yapılmadı: hedef anlamsız, tam puan ya alınır ya alınmaz.
             self::EVET_HAYIR, self::ORAN, self::MANUEL => (int) $faaliyet->puan,
             self::KADEMELI => self::enYuksekKademePuani($faaliyet),
-            default => (int) $faaliyet->puan * (int) $faaliyet->hedef,
+            default => (int) $faaliyet->puan * self::hedef($faaliyet, $donemOrani),
         };
+    }
+
+    /**
+     * Ay aralığına göre orantılanmış hedef.
+     *
+     * Rapor bir ay aralığıyla sınırlandığında dönemin tamamı için konmuş hedefi
+     * payda tutmak yanıltıcı olur: 12 aylık dönemde hedefi 12 olan bir kriterde
+     * Mart-Temmuz arası 5 kayıt girmiş şube, tam hedefe göre %42 görünür ama
+     * o beş ayda beklenen zaten 5'tir. Sayım tabanlı ölçüler (sayı, kademeli
+     * eşikleri, oran yüzdesi) ay sayısıyla orantılanır.
+     *
+     * Evet/hayır ve manuel türlerde tavan zaten aya bağlı değildir: biri "yapıldı
+     * mı" sorusudur, diğerinde puanı merkez verir. Onlar orantılanmaz.
+     */
+    public static function hedef(Faaliyet $faaliyet, float $donemOrani = 1.0): int
+    {
+        return self::orantila((int) $faaliyet->hedef, $donemOrani);
+    }
+
+    /** Sıfırdan büyük bir hedef orantılandığında sıfıra düşmemeli. */
+    private static function orantila(int $deger, float $donemOrani): int
+    {
+        if ($deger <= 0 || $donemOrani >= 1.0) {
+            return $deger;
+        }
+
+        return max(1, (int) round($deger * $donemOrani));
     }
 
     /**
@@ -60,9 +94,11 @@ class PuanHesaplayici
      * şubenin 5 ziyareti aynı başarı değildir. hedef alanı burada yüzde
      * anlamına gelir (hedef=20 → üyelerin %20'sine ulaşılmalı).
      */
-    private static function oranPuani(Faaliyet $faaliyet, int $adet, ?int $uyeSayisi): int
+    private static function oranPuani(Faaliyet $faaliyet, int $adet, ?int $uyeSayisi, float $donemOrani = 1.0): int
     {
-        $hedefYuzde = (int) $faaliyet->hedef;
+        // Beş ayda üyelerin %20'sine ulaşmak on iki ayda ulaşmakla aynı iş
+        // değil; hedef yüzdesi de ay sayısıyla orantılanır.
+        $hedefYuzde = self::hedef($faaliyet, $donemOrani);
 
         // Üye sayısı bilinmiyorsa oran hesaplanamaz; puan verilmez.
         if (!$uyeSayisi || $uyeSayisi <= 0 || $hedefYuzde <= 0) {
@@ -76,12 +112,13 @@ class PuanHesaplayici
     }
 
     /** Eşiği geçilen en yüksek kademenin puanı. */
-    private static function kademePuani(Faaliyet $faaliyet, int $adet): int
+    private static function kademePuani(Faaliyet $faaliyet, int $adet, float $donemOrani = 1.0): int
     {
         $puan = 0;
 
         foreach (self::kademeler($faaliyet) as $kademe) {
-            if ($adet >= $kademe['esik']) {
+            // Eşikler de sayım tabanlıdır; kısa aralıkta orantılanır.
+            if ($adet >= self::orantila($kademe['esik'], $donemOrani)) {
                 $puan = max($puan, $kademe['puan']);
             }
         }

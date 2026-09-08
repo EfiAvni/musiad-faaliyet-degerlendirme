@@ -8,6 +8,8 @@ use App\Models\Faaliyet;
 use App\Support\BirimKapsami;
 use App\Support\DonemPuanlama;
 use App\Support\KriterKategorileri;
+use App\Support\PuanHesaplayici;
+use App\Support\RaporFiltresi;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -21,7 +23,9 @@ class ReportController extends Controller
     {
         $this->assertErisim($request, $donem);
 
-        return response()->json($this->buildReport($donem));
+        $donem->loadMissing('aylar');
+
+        return response()->json($this->buildReport($donem, RaporFiltresi::istekten($request, $donem)));
     }
 
     public function pdf(Request $request, Donem $donem): Response
@@ -29,8 +33,11 @@ class ReportController extends Controller
         $this->assertErisim($request, $donem);
 
         Carbon::setLocale('tr');
+        $donem->loadMissing('aylar');
 
-        $report = $this->buildReport($donem);
+        // PDF ekrandakiyle aynı filtreyi kullanır: kullanıcı Mart-Temmuz'u
+        // süzüp indirdiğinde eline dönemin tamamı geçmemeli.
+        $report = $this->buildReport($donem, RaporFiltresi::istekten($request, $donem));
         $logoPath = resource_path('images/musiad-logo.png');
         $logoBase64 = is_file($logoPath) ? base64_encode(file_get_contents($logoPath)) : null;
 
@@ -76,13 +83,14 @@ class ReportController extends Controller
         return KriterKategorileri::kirilim($toplamlar);
     }
 
-    private function buildReport(Donem $donem): array
+    private function buildReport(Donem $donem, ?RaporFiltresi $filtre = null): array
     {
         $donem->loadMissing(['aylar', 'subeler:id,name']);
+        $filtre ??= new RaporFiltresi();
 
         // Şube listesi, kriterler, kayıt adetleri ve merkezin verdiği manuel
         // puanlar tek kaynaktan gelir; bu rapor onları yalnızca sunar.
-        $puanlama = new DonemPuanlama($donem);
+        $puanlama = new DonemPuanlama($donem, null, $filtre);
 
         $subeler = $puanlama->subeler;
         $faaliyetler = $puanlama->faaliyetler;
@@ -115,7 +123,7 @@ class ReportController extends Controller
             foreach ($faaliyetler as $f) {
                 $adet = $puanlama->adet($sube, $f);
                 $katki = $puanlama->faaliyetPuani($sube, $f);
-                $maxPuan = $f->max_puan;
+                $maxPuan = $puanlama->maxPuan($f);
 
                 $subeToplamPuan += $katki;
                 $subeKayitSayisi += $adet;
@@ -148,16 +156,22 @@ class ReportController extends Controller
 
         $subeBazli = collect($subeBazliHam)->sortByDesc('toplam_puan')->values();
 
-        $faaliyetBazli = $faaliyetler->map(function (Faaliyet $f) use ($faaliyetToplamAdet, $faaliyetToplamPuan, $faaliyetPuanAlanSube, $subeSayisi) {
+        $faaliyetBazli = $faaliyetler->map(function (Faaliyet $f) use ($puanlama, $faaliyetToplamAdet, $faaliyetToplamPuan, $faaliyetPuanAlanSube, $subeSayisi) {
             $toplamPuan = $faaliyetToplamPuan[$f->id] ?? 0;
-            $beklenenPuan = $subeSayisi * $f->max_puan;
+            $maxPuan = $puanlama->maxPuan($f);
+            $beklenenPuan = $subeSayisi * $maxPuan;
 
             return [
                 'faaliyet_id'          => $f->id,
                 'title'                => $f->title,
+                'kriter_turu'          => $f->kriter_turu,
+                'kategori'             => KriterKategorileri::anahtar($f->kategori),
                 'puan'                 => $f->puan,
-                'hedef'                => $f->hedef,
-                'max_puan'             => $f->max_puan,
+                // Ay aralığı seçiliyse hedef orantılanmış olanıdır; tablo
+                // dönemin tam hedefini gösterirse oran anlaşılmaz olur.
+                'hedef'                => PuanHesaplayici::hedef($f, $puanlama->donemOrani),
+                'donem_hedefi'         => $f->hedef,
+                'max_puan'             => $maxPuan,
                 'toplam_kayit'         => $faaliyetToplamAdet[$f->id] ?? 0,
                 'toplam_puan'          => $toplamPuan,
                 // Kayıt giren şube değil puan alan şube: manuel kriterde şube
@@ -167,11 +181,16 @@ class ReportController extends Controller
             ];
         })->sortByDesc('toplam_puan')->values();
 
+        // Trend dönemin bütün aylarını gösterir; seçili aralık işaretlidir,
+        // böylece "hangi aylar rapora giriyor" grafikte de okunur.
+        $secililer = $filtre->ayIds;
+
         $aylikTrend = $donem->aylar->map(fn ($ay) => [
             'ay_id'        => $ay->id,
             'ay'           => $ay->name,
             'sira'         => $ay->sira,
             'kayit_sayisi' => $kayitlar->where('donem_ay_id', $ay->id)->count(),
+            'secili'       => $secililer === null || in_array($ay->id, $secililer, true),
         ])->values();
 
         $enIyiSube = $subeBazli->first();
@@ -179,7 +198,9 @@ class ReportController extends Controller
         $genel = [
             'toplam_sube'          => $subeSayisi,
             'toplam_faaliyet'      => $faaliyetler->count(),
-            'toplam_hedef'         => (int) $faaliyetler->sum('hedef'),
+            'toplam_hedef'         => (int) $faaliyetler->sum(
+                fn (Faaliyet $f) => PuanHesaplayici::hedef($f, $puanlama->donemOrani)
+            ),
             'toplam_kayit'         => $kayitlar->count(),
             'ortalama_tamamlanma'  => $subeBazli->count() > 0 ? round($subeBazli->avg('tamamlanma_orani'), 4) : 0,
             'en_iyi_sube_adi'      => $enIyiSube['sube_adi'] ?? null,
@@ -200,6 +221,16 @@ class ReportController extends Controller
                 'tum_subeler'  => $donem->tum_subeler,
                 'subeler'      => $donem->subeler,
                 'periyot_tipi' => $donem->periyot_tipi,
+                // Ay seçicisinin kaynağı: arayüz ayrıca dönem detayı çekmesin.
+                'aylar'        => $donem->aylar->map(fn ($ay) => [
+                    'id' => $ay->id, 'name' => $ay->name, 'sira' => $ay->sira,
+                ])->values(),
+            ],
+            // Uygulanan filtre geri döner: arayüz neyi süzdüğünü gösterir ve
+            // orantılı hedef kullanıldığını bildirir.
+            'filtre' => $filtre->ozet() + [
+                'donem_orani'   => round($puanlama->donemOrani, 4),
+                'hedef_orantili' => $filtre->ayAraligiVarMi(),
             ],
             'genel'                 => $genel,
             'sube_bazli'            => $subeBazli,

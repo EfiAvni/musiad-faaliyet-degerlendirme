@@ -28,7 +28,12 @@ export type RaporFaaliyet = {
   faaliyet_id: number
   title: string
   puan: number
+  /** Ay aralığı seçiliyse orantılanmış hedef. */
   hedef: number
+  /** Dönemin tamamı için konmuş hedef — orantılamanın neye göre yapıldığı görünsün diye. */
+  donem_hedefi: number
+  kriter_turu: string
+  kategori: string
   max_puan: number
   toplam_kayit: number
   toplam_puan: number
@@ -42,6 +47,33 @@ export type RaporAy = {
   ay: string
   sira: number
   kayit_sayisi: number
+  /** Ay aralığı filtresine dahil mi — trend grafiği aralık dışını soluk gösterir. */
+  secili: boolean
+}
+
+/** Dönemin ayları; ay aralığı seçicisinin kaynağı. */
+export type RaporAyi = {
+  id: number
+  name: string
+  sira: number
+}
+
+/** Arayüzdeki filtre durumu. Boş dizi "hepsi" demektir. */
+export type RaporFiltre = {
+  ayIds: number[]
+  subeIds: number[]
+  kategoriler: string[]
+  kriterTurleri: string[]
+}
+
+/** Sunucunun uyguladığı filtre — arayüzün gönderdiğinden farklı olabilir (geçersiz değerler süzülür). */
+export type UygulananFiltre = {
+  ay_ids: number[] | null
+  sube_ids: number[] | null
+  kategoriler: string[] | null
+  kriter_turleri: string[] | null
+  donem_orani: number
+  hedef_orantili: boolean
 }
 
 export type RaporMatrisHucre = {
@@ -62,7 +94,9 @@ export type DonemRaporu = {
     tum_subeler: boolean
     subeler: { id: number; name: string }[]
     periyot_tipi: PeriyotTipi
+    aylar: RaporAyi[]
   }
+  filtre: UygulananFiltre
   genel: RaporGenel
   sube_bazli: RaporSube[]
   faaliyet_bazli: RaporFaaliyet[]

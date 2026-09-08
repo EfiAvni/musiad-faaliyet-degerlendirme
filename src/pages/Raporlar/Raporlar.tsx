@@ -4,7 +4,12 @@ import { Card } from '@/components/common/Card'
 import { donemlerApi } from '@/services/donemService'
 import type { Donem as ApiDonem, PeriyotTipi } from '@/types/donem'
 import { raporlarApi } from '@/services/raporService'
-import type { DonemRaporu, RaporTab } from '@/types/rapor'
+import type { DonemRaporu, RaporFiltre, RaporTab } from '@/types/rapor'
+import { subelerApi } from '@/services/subeService'
+import type { Sube as ApiSube } from '@/types/sube'
+import { RaporFiltreBari } from './RaporFiltreBari'
+
+const BOS_FILTRE: RaporFiltre = { ayIds: [], subeIds: [], kategoriler: [], kriterTurleri: [] }
 import {
   inputCls, PERIYOT_TIPI_LABEL, PERIYOT_TIPI_SIRALAMA, PERIYOT_TIPI_VARSAYILAN_TAB,
 } from '@/utils/constants'
@@ -31,13 +36,16 @@ export function RaporlarPage({ initialDonemId }: { initialDonemId: number | null
   const [tab, setTab] = useState<RaporTab>('genel')
   const [indiriliyor, setIndiriliyor] = useState(false)
   const [periyotFiltre, setPeriyotFiltre] = useState<PeriyotTipi | 'all'>('all')
+  const [filtre, setFiltre] = useState<RaporFiltre>(BOS_FILTRE)
+  const [subeler, setSubeler] = useState<ApiSube[]>([])
   const [gorunum, setGorunum] = useState<'donem' | 'yillik'>('donem')
   const varsayilanTabUygulandi = useRef<number | null>(null)
 
   useEffect(() => {
     (async () => {
       try {
-        const data = await donemlerApi.list()
+        const [data, subeData] = await Promise.all([donemlerApi.list(), subelerApi.list()])
+        setSubeler(subeData)
         const raporlanabilir = data.filter(d => d.status !== 'pending')
         setDonemler(raporlanabilir)
         setSelectedDonemId(prev => {
@@ -56,10 +64,16 @@ export function RaporlarPage({ initialDonemId }: { initialDonemId: number | null
   useEffect(() => {
     if (selectedDonemId === null) { setRapor(null); return }
     setLoadingRapor(true)
-    raporlarApi.donemRaporu(selectedDonemId)
+    raporlarApi.donemRaporu(selectedDonemId, filtre)
       .then(data => { setRapor(data); setApiError('') })
       .catch(() => setApiError('Rapor yüklenemedi. Backend bağlantısını kontrol edin.'))
       .finally(() => setLoadingRapor(false))
+  }, [selectedDonemId, filtre])
+
+  // Dönem değişince filtre sıfırlanır: ay id'leri döneme özgüdür, taşınırsa
+  // sunucu onları süzer ve kullanıcı sebebini anlamadan boş sonuç görür.
+  useEffect(() => {
+    setFiltre(BOS_FILTRE)
   }, [selectedDonemId])
 
   useEffect(() => {
@@ -82,7 +96,11 @@ export function RaporlarPage({ initialDonemId }: { initialDonemId: number | null
     if (!selectedDonemId || !rapor) return
     setIndiriliyor(true)
     try {
-      await raporlarApi.indirPdf(selectedDonemId, `MUSIAD-${rapor.donem.name.replace(/\s+/g, '-')}-raporu.pdf`)
+      await raporlarApi.indirPdf(
+        selectedDonemId,
+        `MUSIAD-${rapor.donem.name.replace(/\s+/g, '-')}-raporu.pdf`,
+        filtre,
+      )
     } catch {
       setApiError('PDF oluşturulamadı. Backend bağlantısını kontrol edin.')
     } finally {
@@ -138,6 +156,15 @@ export function RaporlarPage({ initialDonemId }: { initialDonemId: number | null
             </FormField>
           </div>
         </div>
+
+        {rapor && rapor.donem.aylar.length > 0 && (
+          <RaporFiltreBari
+            aylar={rapor.donem.aylar}
+            subeler={subeler}
+            filtre={filtre}
+            onChange={setFiltre}
+          />
+        )}
 
         {loadingDonemler ? (
           <Loading />

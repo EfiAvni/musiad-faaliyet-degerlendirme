@@ -26,7 +26,16 @@ function buildColumns(toplamSube: number): DataTableColumn<RaporFaaliyet>[] {
       header: 'Hedef',
       headerClassName: 'px-5 py-3 font-medium text-right',
       cellClassName: 'px-5 py-2.5 text-right text-gray-600',
-      render: f => f.hedef,
+      // Ay aralığı seçiliyse orantılanmış hedef gösterilir; dönemin tam hedefi
+      // yanında soluk durur ki oranın neye göre düştüğü anlaşılsın.
+      render: f => (
+        <span className="whitespace-nowrap">
+          {f.hedef}
+          {f.donem_hedefi !== f.hedef && (
+            <span className="text-gray-400"> / {f.donem_hedefi}</span>
+          )}
+        </span>
+      ),
     },
     {
       header: 'Toplam Kayıt',
