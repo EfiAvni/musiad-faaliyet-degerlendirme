@@ -10,7 +10,9 @@ export const faaliyetKayitlariApi = {
     return api.get<FaaliyetKayit[]>(`/faaliyet-kayitlari${query ? `?${query}` : ''}`)
   },
 
-  create: (data: { faaliyet_id: number; tarih?: string | null; deger: string; aciklama?: string | null }) =>
+  // donem_ay_id açıkça gönderilir: birden fazla ay açıkken backend hangi aya
+  // yazacağını tahmin etmez, reddeder.
+  create: (data: { faaliyet_id: number; donem_ay_id: number; tarih?: string | null; deger: string; aciklama?: string | null }) =>
     api.post<FaaliyetKayit>('/faaliyet-kayitlari', data),
 
   update: (id: number, data: Partial<{ tarih: string | null; deger: string; aciklama: string | null }>) =>
