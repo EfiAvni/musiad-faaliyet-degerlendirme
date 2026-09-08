@@ -1,0 +1,3 @@
+# Projeye dahil edilen üçüncü parti dosyalar yukarıdan alındığı gibi kalmalı:
+# satır sonu dönüşümü baytları değiştirir ve kopyanın doğrulanabilirliğini bozar.
+public/vendor/** -text
