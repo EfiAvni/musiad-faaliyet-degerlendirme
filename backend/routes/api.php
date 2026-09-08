@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BildirimController;
 use App\Http\Controllers\Api\BirimController;
 use App\Http\Controllers\Api\DonemController;
 use App\Http\Controllers\Api\FaaliyetController;
@@ -22,6 +23,11 @@ Route::post('/auth/login', [AuthController::class, 'login'])->middleware('thrott
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
+
+    // Bildirimler her role açık - uçlar yalnızca çağıranın kendi kayıtlarını görür.
+    Route::get('/bildirimler', [BildirimController::class, 'index']);
+    Route::post('/bildirimler/okundu', [BildirimController::class, 'tumunuOkundu']);
+    Route::post('/bildirimler/{bildirim}/okundu', [BildirimController::class, 'okundu']);
 
     // Süper Admin
     Route::middleware('role:superadmin')->group(function () {

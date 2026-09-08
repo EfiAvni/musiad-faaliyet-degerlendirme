@@ -94,7 +94,7 @@ export default function App() {
     <div className="flex h-screen overflow-hidden">
       <Sidebar current={page} onNavigate={handleNavigate} collapsed={sidebarCollapsed} user={currentUser} onLogout={handleLogout} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <TopHeader onToggleSidebar={() => setSidebarCollapsed(p => !p)} currentPageLabel={pageLabels[page] || ''} user={currentUser} />
+        <TopHeader onToggleSidebar={() => setSidebarCollapsed(p => !p)} currentPageLabel={pageLabels[page] || ''} user={currentUser} onNavigate={handleNavigate} />
         <main className="flex-1 overflow-y-auto p-6 bg-gray-50">
           {/* Gecikmeli yüklenen sayfalar (Raporlar) indirilirken yükleniyor göstergesi */}
           <Suspense fallback={<Loading />}>
