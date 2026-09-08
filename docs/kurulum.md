@@ -12,6 +12,7 @@ Arayüz statik dosyalardan ibarettir; API ile aynı sunucuda ya da ayrı bir yer
 |---|---|---|
 | PHP | 8.3 veya üzeri | `composer.json` `^8.3` ister |
 | PHP eklentileri | `pdo_mysql`, `mbstring`, `openssl`, `fileinfo`, `tokenizer`, `xml`, `curl`, `gd`, `zip` | `gd` olmadan **PDF raporu 500 döner** |
+| OPcache | açık | Kapalıysa uygulama **6–7 kat yavaş** çalışır — [Performans](#performans) |
 | Composer | 2.x | |
 | MySQL | 8.0 | CI bu sürümle sınanıyor |
 | Node.js | 22 veya üzeri | Yalnızca derleme için; sunucuda çalışmaz |
@@ -185,6 +186,51 @@ curl -i https://api.faaliyet.musiad.org.tr/api/auth/login \
 
 ---
 
+## Performans
+
+Uygulamanın hızını belirleyen şey sorgular değil, **PHP'nin her istekte Laravel'i yeniden derleyip derlemediği.** Ölçüm (aynı sunucu, aynı veri):
+
+| Uç | OPcache kapalı | OPcache + önbellek açık |
+|---|---|---|
+| `/api/birimler` | 235 ms | **39 ms** |
+| `/api/subeler` | 245 ms | **35 ms** |
+| `/api/raporlar/{id}` | 283 ms | **66 ms** |
+
+Uygulama mantığı bu sürelerin küçük bir kısmı: bir dönemin tüm puanlaması 5 sorgu ve ~12 ms. Geri kalanı önyükleme maliyeti.
+
+### OPcache
+
+`php.ini` içinde açık olmalı:
+
+```ini
+zend_extension=opcache
+opcache.enable=1
+opcache.memory_consumption=256
+opcache.max_accelerated_files=20000
+opcache.interned_strings_buffer=16
+; Üretimde dosya değişikliği kontrolünü kapatmak ek hız verir,
+; ama her dağıtımdan sonra PHP-FPM yeniden başlatılmalıdır:
+; opcache.validate_timestamps=0
+```
+
+Açık olduğunu doğrulayın:
+
+```bash
+php -m | grep -i opcache
+```
+
+> Eklentiyi kurduktan sonra **PHP-FPM'i yeniden başlatın**. Çalışan süreç eski yapılandırmayı taşır; `php -m` doğru görünse bile web isteklerine yansımaz.
+
+### Laravel önbellekleri
+
+[Performans ayarları](#performans-ayarları) bölümündeki `config:cache`, `route:cache` ve `view:cache` komutları tek başına ~%25 kazandırır; OPcache ile birlikte yukarıdaki tabloyu verir.
+
+### CORS preflight
+
+Arayüz jeton başlığı gönderdiği için tarayıcı istekleri "basit" saymaz ve her çağrıdan önce bir `OPTIONS` isteği atar. `CORS_MAX_AGE` (varsayılan 86400 saniye) bu yanıtın tarayıcıda saklanmasını sağlar; ilk çağrıdan sonra ek tur ortadan kalkar. Sıfıra çekmek her isteği ikiye katlar.
+
+---
+
 ## Yedekleme
 
 Yedeklenmesi gerekenler:
@@ -233,3 +279,7 @@ Migration çalıştırmadan önce veritabanı yedeği alın.
 **`.env` değişikliği etkisiz** — yapılandırma önbelleklenmiş. `php artisan config:cache` çalıştırın.
 
 **Arayüz açılıyor ama veriler gelmiyor** — büyük olasılıkla `VITE_API_URL` yanlış ya da hiç verilmeden derlenmiş; bu durumda `http://127.0.0.1:8000/api` varsayılanına düşer. Doğru değerle yeniden derleyin.
+
+**Sayfalar geç açılıyor, her tıklama bekletiyor** — neredeyse her zaman OPcache kapalıdır. `php -m | grep -i opcache` ile kontrol edin; kuruluysa PHP-FPM'i yeniden başlatmayı unutmayın. Ardından `config:cache` çalıştırılmış mı bakın. [Performans](#performans) bölümünde ölçümler var.
+
+**Geliştirme ortamında her istek iki kez gidiyor** — `React.StrictMode` etkileri bilerek iki kez çalıştırır. Üretim derlemesinde olmaz, bir sorun değildir.

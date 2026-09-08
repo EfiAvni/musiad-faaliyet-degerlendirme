@@ -34,7 +34,17 @@ return [
 
     'exposed_headers' => [],
 
-    'max_age' => 0,
+    /*
+     * Preflight (OPTIONS) yanıtının tarayıcıda ne kadar saklanacağı.
+     *
+     * Sıfırken tarayıcı her API çağrısından önce ayrı bir OPTIONS isteği atar:
+     * arayüz jeton başlığı gönderdiği için istekler "basit" sayılmaz ve her
+     * biri iki tura çıkar. Bir gün saklamak ilk çağrıdan sonra bu turu ortadan
+     * kaldırır. Değer CORS ayarları değiştiğinde tarayıcının ne kadar geç
+     * haberdar olacağını da belirler; bu ayarlar dağıtımla değiştiği için bir
+     * gün güvenli bir aralık.
+     */
+    'max_age' => (int) env('CORS_MAX_AGE', 86400),
 
     'supports_credentials' => false,
 
