@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Support\PuanHesaplayici;
@@ -37,6 +38,25 @@ class Faaliyet extends Model
     public function kayitlar(): HasMany
     {
         return $this->hasMany(FaaliyetKayit::class);
+    }
+
+    /** Pasif faaliyet artık kullanılmayan bir kriterdir; puanlamanın dışındadır. */
+    public function pasifMi(): bool
+    {
+        return $this->durum === 'passive';
+    }
+
+    /**
+     * Değerlendirmeye giren kriterler.
+     *
+     * Pasif yapılan bir kriter ne puan üretir ne de tavana eklenir - dönem
+     * raporu, şube puan özeti ve yıllık rapor bu kapıdan geçer. Payda tüm
+     * şubeler için aynı daraldığından karşılaştırma bozulmaz; silinemeyen
+     * (kaydı olan) bir kriteri değerlendirmeden çıkarmanın tek yolu budur.
+     */
+    public function scopeDegerlendirmeye(Builder $query): Builder
+    {
+        return $query->where('durum', '!=', 'passive');
     }
 
     /** Kriter türüne göre değişir; hesap PuanHesaplayici'da tek yerde durur. */

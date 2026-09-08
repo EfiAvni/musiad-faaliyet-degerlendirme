@@ -115,7 +115,11 @@ export function FaaliyetlerimPage() {
   const aktifGrup = birimGruplari.find(g => g.donemler.some(d => d.id === selectedDonemId)) ?? null
   const cokBirimliMi = birimGruplari.length > 1
 
-  const acikAy = (aylar ?? []).find(a => a.acik)
+  // Normalde tek bir ay açıktır; birim yöneticisi elle birden fazlasını açarsa
+  // hangisine yazıldığı belirsizleşir, o yüzden durumu kullanıcıya bildiriyoruz.
+  const acikAylar = (aylar ?? []).filter(a => a.acik)
+  const acikAy = acikAylar[0]
+  const birdenFazlaAcikAy = acikAylar.length > 1
   const kayitlarByFaaliyet = (faaliyetId: number) => kayitlar.filter(k => k.faaliyet_id === faaliyetId)
 
   // Gönderim kaydı olmayan ay taslaktır - backend o ay için satır tutmuyor.
@@ -166,8 +170,10 @@ export function FaaliyetlerimPage() {
     setSaving(true); setFormError('')
     try {
       if (kayitModal.mode === 'create') {
+        if (!acikAy) { setFormError('Açık bir değerlendirme ayı bulunmuyor.'); setSaving(false); return }
         await faaliyetKayitlariApi.create({
           faaliyet_id: kayitModal.faaliyet.id,
+          donem_ay_id: acikAy.id,
           tarih: kayitModal.faaliyet.tarih_gerekli ? formTarih : null,
           deger: formDeger.trim(),
           aciklama: formAciklama.trim() || null,
@@ -253,6 +259,14 @@ export function FaaliyetlerimPage() {
       {!loading && activeDonem && !acikAy && (
         <div className="mb-4 px-4 py-3 bg-amber-50 border border-amber-100 rounded-xl text-sm text-amber-700">
           Şu anda açık bir değerlendirme ayı bulunmuyor. Yeni kayıt eklenemez; gerekirse birim yöneticinizle iletişime geçin.
+        </div>
+      )}
+
+      {!loading && birdenFazlaAcikAy && acikAy && (
+        <div className="mb-4 px-4 py-3 bg-amber-50 border border-amber-100 rounded-xl text-sm text-amber-700">
+          Birden fazla ay açık ({acikAylar.map(a => a.name).join(', ')}). Girdiğiniz kayıtlar{' '}
+          <strong>{acikAy.name}</strong> ayına yazılır. Başka bir aya girmeniz gerekiyorsa birim yöneticinizle
+          iletişime geçin.
         </div>
       )}
 

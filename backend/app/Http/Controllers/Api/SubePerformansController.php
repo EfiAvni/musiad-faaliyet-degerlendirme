@@ -94,8 +94,9 @@ class SubePerformansController extends Controller
         foreach ($donemler as $donem) {
             $puanlama = new DonemPuanlama($donem, $sube->id);
 
-            // Dönem kapsamı şube listesini boş bırakabilir (şube pasifse veya
-            // dönemin seçili şubeleri arasında değilse); o dönem satıra girmez.
+            // Şubenin o dönemde hiç yeri yoksa satır açılmaz. Pasife alınmış
+            // olmak tek başına yetmez: döneme kaydı girilmişse şube kendi
+            // geçmişini görmeye devam eder (bkz. DonemPuanlama::subeleriTopla).
             if ($puanlama->subeler->isEmpty()) {
                 continue;
             }

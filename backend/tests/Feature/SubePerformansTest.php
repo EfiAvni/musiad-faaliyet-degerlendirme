@@ -102,6 +102,51 @@ class SubePerformansTest extends TestCase
             ->assertJsonPath('faaliyetler.0.puan', 30);
     }
 
+    /**
+     * Şube pasife alındıktan sonra da kendi geçmişini görebilmeli. Puanlama
+     * kapsamı "aktif şubeler ∪ döneme kaydı girilmiş şubeler" olduğu için
+     * pasife alınmak girilmiş kayıtları görünmez yapmaz.
+     */
+    public function test_pasife_alinan_sube_kendi_gecmisini_gorur(): void
+    {
+        $donem = $this->donem('Ocak', '2026-01-01', 'completed');
+        $f = $this->faaliyet($donem);
+        $ay = $this->ay($donem);
+        $this->kayit($f, $this->ankara, $ay, 3);
+
+        $this->ankara->update(['status' => 'passive']);
+
+        Sanctum::actingAs($this->ankaraYoneticisi);
+
+        $this->getJson("/api/performansim?donem_id={$donem->id}")
+            ->assertOk()
+            ->assertJsonPath('genel.toplam_puan', 30)
+            ->assertJsonPath('genel.kayit_sayisi', 3);
+
+        $this->getJson('/api/performansim/yillik?yil=2026')
+            ->assertOk()
+            ->assertJsonPath('donem_puanlari.0.donem_adi', 'Ocak')
+            ->assertJsonPath('donem_puanlari.0.puan', 30)
+            ->assertJsonPath('genel.donem_sayisi', 1);
+    }
+
+    /** Kaydı olmayan pasif şube için dönem satırı hiç açılmaz. */
+    public function test_kaydi_olmayan_pasif_sube_icin_donem_satiri_acilmaz(): void
+    {
+        $donem = $this->donem('Ocak', '2026-01-01', 'completed');
+        $this->faaliyet($donem);
+        $this->ay($donem);
+
+        $this->ankara->update(['status' => 'passive']);
+
+        Sanctum::actingAs($this->ankaraYoneticisi);
+
+        $this->getJson('/api/performansim/yillik?yil=2026')
+            ->assertOk()
+            ->assertJsonPath('donem_puanlari', [])
+            ->assertJsonPath('genel.donem_sayisi', 0);
+    }
+
     public function test_ozet_baska_subenin_puanini_icermez(): void
     {
         $donem = $this->donem('Ocak', '2026-01-01');

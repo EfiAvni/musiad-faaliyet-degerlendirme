@@ -13,6 +13,7 @@ use App\Support\PuanHesaplayici;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -122,6 +123,19 @@ class GonderimController extends Controller
                 'degerlendiren_id'   => null,
             ],
         );
+
+        // Manuel puanlar da değerlendirme izidir: şube düzeltip yeniden
+        // gönderdiğinde merkezin eski notu geçerliliğini yitirir. Kalsaydı
+        // değişmiş bir aya ait puan raporda sessizce geçerli kalırdı.
+        $silinen = FaaliyetDegerlendirme::where('ay_gonderim_id', $gonderim->id)->delete();
+
+        if ($silinen > 0) {
+            Log::info('Yeniden gönderimde manuel puanlar silindi', [
+                'ay_gonderim_id' => $gonderim->id,
+                'sube_id'        => $user->sube_id,
+                'silinen'        => $silinen,
+            ]);
+        }
 
         return response()->json($this->taze($gonderim), $gonderim->wasRecentlyCreated ? 201 : 200);
     }

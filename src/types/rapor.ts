@@ -11,6 +11,8 @@ export type RaporGenel = {
   ortalama_tamamlanma: number
   en_iyi_sube_adi: string | null
   en_iyi_sube_orani: number | null
+  /** Oran tipi kriter varken üye sayısı girilmemiş şubeler — o kriterlerde puan üretilemez. */
+  uye_sayisi_eksik: { sube_id: number; sube_adi: string }[]
 }
 
 export type RaporSube = {
@@ -29,6 +31,8 @@ export type RaporFaaliyet = {
   hedef: number
   max_puan: number
   toplam_kayit: number
+  toplam_puan: number
+  /** Bu kriterden puan almış şube sayısı — manuel kriterde kayıt olmadan da puan alınabilir. */
   katilan_sube_sayisi: number
   doluluk_orani: number
 }

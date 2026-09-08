@@ -153,6 +153,29 @@ class YillikPerformansTest extends TestCase
             ->assertJsonPath('sube_bazli.0.toplam_puan', 30);
     }
 
+    /**
+     * Yıla ait olma ölçütü dönemin başlangıç tarihidir; yıl sınırını aşan bir
+     * dönem tamamen başladığı yıla sayılır. Böylece her dönem tek bir yılda ve
+     * tam olarak bir kez yer alır - bitiş tarihine de bakılsaydı iki yıla birden
+     * girip puanı iki kez sayılırdı. Kural yazılı olmadığı için sabitleniyor.
+     */
+    public function test_yil_sinirini_asan_donem_basladigi_yila_sayilir(): void
+    {
+        $donem = $this->donem('Aralik 2026 - Mart 2027', '2026-12-01');
+        $donem->update(['end_date' => '2027-03-31']);
+
+        $this->faaliyetVeKayit($donem, $this->ankara, 5);
+
+        Sanctum::actingAs($this->merkez());
+
+        $this->assertSame(
+            ['Aralik 2026 - Mart 2027'],
+            array_column($this->getJson('/api/raporlar/yillik?yil=2026')->json('donemler'), 'name'),
+        );
+
+        $this->assertSame([], $this->getJson('/api/raporlar/yillik?yil=2027')->json('donemler'));
+    }
+
     public function test_donemsiz_yil_bos_doner(): void
     {
         Sanctum::actingAs($this->merkez());
