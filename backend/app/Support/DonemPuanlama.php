@@ -37,18 +37,27 @@ class DonemPuanlama
      *   performansını sorarken 198 şubenin kaydını yüklemenin anlamı yok; sonuç
      *   aynı, çünkü puanlama şubeler arası bir bağ kurmuyor.
      */
-    public function __construct(public Donem $donem, private ?int $sadeceSubeId = null)
-    {
+    public function __construct(
+        public Donem $donem,
+        private ?int $sadeceSubeId = null,
+        public ?RaporFiltresi $filtre = null,
+    ) {
+        $this->donem->loadMissing('aylar');
+        $this->filtre ??= new RaporFiltresi();
+        $this->donemOrani = $this->filtre->donemOrani($this->donem);
         $this->hazirla();
     }
 
     /** @var Collection<int, FaaliyetKayit> */
     public Collection $kayitlar;
 
+    /** Seçili ay aralığının dönemin kaçta kaçı olduğu; hedefler bununla orantılanır. */
+    public float $donemOrani = 1.0;
+
     private function hazirla(): void
     {
-        $this->faaliyetler = Faaliyet::where('donem_id', $this->donem->id)->degerlendirmeye()->get();
-        $this->maxPuanToplam = (int) $this->faaliyetler->sum(fn (Faaliyet $f) => $f->max_puan);
+        $this->faaliyetler = $this->faaliyetleriTopla();
+        $this->maxPuanToplam = (int) $this->faaliyetler->sum(fn (Faaliyet $f) => $this->maxPuan($f));
 
         $faaliyetIds = $this->faaliyetler->pluck('id');
 
@@ -56,6 +65,7 @@ class DonemPuanlama
 
         $this->kayitlar = FaaliyetKayit::whereIn('faaliyet_id', $faaliyetIds)
             ->whereIn('sube_id', $this->subeler->pluck('id'))
+            ->when($this->filtre->ayAraligiVarMi(), fn ($q) => $q->whereIn('donem_ay_id', $this->filtre->ayIds))
             ->get(['id', 'faaliyet_id', 'sube_id', 'donem_ay_id']);
 
         foreach ($this->kayitlar as $k) {
@@ -63,6 +73,37 @@ class DonemPuanlama
         }
 
         $this->manuelPuanlar = $this->manuelPuanlariTopla($faaliyetIds);
+    }
+
+    /** Değerlendirmeye giren kriterler, kategori ve tür filtreleriyle daraltılmış. */
+    private function faaliyetleriTopla(): Collection
+    {
+        return Faaliyet::where('donem_id', $this->donem->id)
+            ->degerlendirmeye()
+            ->when($this->filtre->kriterTurleri, fn ($q, $turler) => $q->whereIn('kriter_turu', $turler))
+            ->when($this->filtre->kategoriler, function ($q, $kategoriler) {
+                // Kategorisi girilmemiş kriterler "sınıflandırılmamış" sayılır;
+                // o başlık seçiliyse null kategoriler de listeye girer.
+                $siniflandirilmamisSecili = in_array(
+                    KriterKategorileri::SINIFLANDIRILMAMIS,
+                    $kategoriler,
+                    true,
+                );
+
+                return $q->where(function ($sq) use ($kategoriler, $siniflandirilmamisSecili) {
+                    $sq->whereIn('kategori', $kategoriler);
+                    if ($siniflandirilmamisSecili) {
+                        $sq->orWhereNull('kategori');
+                    }
+                });
+            })
+            ->get();
+    }
+
+    /** Faaliyetin bu rapordaki tavanı - ay aralığına göre orantılanmış. */
+    public function maxPuan(Faaliyet $faaliyet): int
+    {
+        return PuanHesaplayici::maxPuan($faaliyet, $this->donemOrani);
     }
 
     /**
@@ -91,11 +132,13 @@ class DonemPuanlama
         $kapsam = (clone $kapsamQuery)
             ->where('subeler.status', 'active')
             ->when($this->sadeceSubeId !== null, fn ($q) => $q->where('subeler.id', $this->sadeceSubeId))
+            ->when($this->filtre->subeIds, fn ($q, $ids) => $q->whereIn('subeler.id', $ids))
             ->get($alanlar);
 
         // Tek şube sorulduğunda 198 şubenin kaydını taramanın anlamı yok.
         $kayitliIds = FaaliyetKayit::whereIn('faaliyet_id', $faaliyetIds)
             ->when($this->sadeceSubeId !== null, fn ($q) => $q->where('sube_id', $this->sadeceSubeId))
+            ->when($this->filtre->subeIds, fn ($q, $ids) => $q->whereIn('sube_id', $ids))
             ->distinct()
             ->pluck('sube_id');
 
@@ -141,6 +184,7 @@ class DonemPuanlama
             $this->adetMatrisi[$sube->id][$faaliyet->id] ?? 0,
             $sube->uye_sayisi,
             $this->manuelPuanlar[$sube->id][$faaliyet->id] ?? null,
+            $this->donemOrani,
         );
     }
 
@@ -184,7 +228,7 @@ class DonemPuanlama
             }
 
             $toplamlar[$anahtar]['puan'] += $this->faaliyetPuani($sube, $f);
-            $toplamlar[$anahtar]['max_puan'] += $f->max_puan;
+            $toplamlar[$anahtar]['max_puan'] += $this->maxPuan($f);
         }
 
         return KriterKategorileri::kirilim($toplamlar);
@@ -199,6 +243,9 @@ class DonemPuanlama
             ->where('donem_aylar.donem_id', $this->donem->id)
             ->whereNull('ay_gonderimleri.deleted_at')
             ->whereIn('faaliyet_degerlendirmeleri.faaliyet_id', $faaliyetIds)
+            // Manuel puan ay bazında verilir; ay aralığı seçiliyse yalnızca o
+            // ayların puanları toplanır.
+            ->when($this->filtre->ayAraligiVarMi(), fn ($q) => $q->whereIn('ay_gonderimleri.donem_ay_id', $this->filtre->ayIds))
             ->when($this->sadeceSubeId !== null, fn ($q) => $q->where('ay_gonderimleri.sube_id', $this->sadeceSubeId))
             ->groupBy('ay_gonderimleri.sube_id', 'faaliyet_degerlendirmeleri.faaliyet_id')
             ->selectRaw('ay_gonderimleri.sube_id, faaliyet_degerlendirmeleri.faaliyet_id, SUM(faaliyet_degerlendirmeleri.puan) as toplam')

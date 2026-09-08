@@ -10,7 +10,12 @@ import { RaporChartTooltip } from './RaporChartTooltip'
 
 export function RaporGenelTab({ rapor }: { rapor: DonemRaporu }) {
   const { genel, aylik_trend } = rapor
-  const trendData = aylik_trend.map(a => ({ name: a.ay.split(' ')[0], kayit: a.kayit_sayisi }))
+  const aralikVar = rapor.filtre?.hedef_orantili ?? false
+  const trendData = aylik_trend.map(a => ({
+    name: a.ay.split(' ')[0],
+    kayit: a.kayit_sayisi,
+    secili: a.secili,
+  }))
   const tamamlanmaYuzde = formatPercent(genel.ortalama_tamamlanma)
 
   const uyeSayisiEksik = genel.uye_sayisi_eksik ?? []
@@ -66,7 +71,14 @@ export function RaporGenelTab({ rapor }: { rapor: DonemRaporu }) {
       </Card>
 
       <Card className="p-5">
-        <h3 className="text-sm font-semibold text-gray-900 mb-4" style={{ fontFamily: 'Instrument Sans, sans-serif' }}>Aylık Kayıt Dağılımı</h3>
+        <div className="flex items-baseline justify-between mb-4 gap-3 flex-wrap">
+          <h3 className="text-sm font-semibold text-gray-900" style={{ fontFamily: 'Instrument Sans, sans-serif' }}>Aylık Kayıt Dağılımı</h3>
+          {aralikVar && (
+            <span className="text-xs text-gray-400">
+              Dolu noktalar seçili aralık; aralık dışı aylar açık gösterilir
+            </span>
+          )}
+        </div>
         {trendData.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-10">Bu döneme ait değerlendirme ayı bulunmuyor.</p>
         ) : (
@@ -82,7 +94,31 @@ export function RaporGenelTab({ rapor }: { rapor: DonemRaporu }) {
               <XAxis dataKey="name" interval={0} tick={{ fontSize: 11, fill: '#898781' }} axisLine={{ stroke: '#c3c2b7' }} tickLine={false} />
               <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#898781' }} axisLine={false} tickLine={false} width={28} />
               <Tooltip content={<RaporChartTooltip suffix=" kayıt" />} />
-              <Area type="monotone" dataKey="kayit" stroke={RAPOR_RENK} strokeWidth={2} fill="url(#raporTrendFill)" dot={{ r: 3, fill: RAPOR_RENK, strokeWidth: 0 }} activeDot={{ r: 5, fill: RAPOR_RENK, stroke: '#fff', strokeWidth: 2 }} />
+              {/* Aralık dışı aylar içi boş nokta ile gösterilir: veri görünür
+                  kalır ama rapora hangi ayların girdiği bir bakışta okunur. */}
+              <Area
+                type="monotone"
+                dataKey="kayit"
+                stroke={RAPOR_RENK}
+                strokeWidth={2}
+                fill="url(#raporTrendFill)"
+                dot={(props: any) => {
+                  const { cx, cy, payload, index } = props
+                  const dolu = payload.secili
+                  return (
+                    <circle
+                      key={index}
+                      cx={cx}
+                      cy={cy}
+                      r={3.5}
+                      fill={dolu ? RAPOR_RENK : '#fff'}
+                      stroke={RAPOR_RENK}
+                      strokeWidth={dolu ? 0 : 1.5}
+                    />
+                  )
+                }}
+                activeDot={{ r: 5, fill: RAPOR_RENK, stroke: '#fff', strokeWidth: 2 }}
+              />
             </AreaChart>
           </ResponsiveContainer>
         )}
