@@ -56,6 +56,7 @@ class FaaliyetKayitController extends Controller
 
         $data = $request->validate([
             'faaliyet_id' => 'required|exists:faaliyetler,id',
+            'donem_ay_id' => 'nullable|integer|exists:donem_aylar,id',
             'tarih'       => 'nullable|date',
             'deger'       => 'required|string',
             'aciklama'    => 'nullable|string',
@@ -89,13 +90,7 @@ class FaaliyetKayitController extends Controller
             ]);
         }
 
-        $acikAy = $faaliyet->donem->aylar->first(fn ($ay) => $ay->acik);
-
-        if (!$acikAy) {
-            throw ValidationException::withMessages([
-                'donem_ay_id' => 'Şu anda açık bir değerlendirme ayı bulunmuyor. Birim yöneticinizle iletişime geçin.',
-            ]);
-        }
+        $acikAy = $this->hedefAy($faaliyet, $data['donem_ay_id'] ?? null);
 
         $mevcutGonderim = AyGonderim::where('donem_ay_id', $acikAy->id)
             ->where('sube_id', $user->sube_id)
@@ -175,6 +170,48 @@ class FaaliyetKayitController extends Controller
      * merkez incelerken altındaki veri kayabilir. Düzeltme istendiyse yeniden
      * açılır (doküman bölüm 11-12).
      */
+    /**
+     * Kaydın yazılacağı ayı belirler.
+     *
+     * Önceden ay hiç sorulmuyor, "sıradaki ilk açık ay" seçiliyordu. Birim
+     * yöneticisi acik_override ile iki ayı birden açtığında kayıtlar sessizce
+     * yanlış aya gidiyordu - ve bu ancak dönem raporundaki aylık dağılıma
+     * bakılınca fark edilirdi. Artık ay açıkça gönderilebilir; gönderilmediğinde
+     * yalnızca tek bir ay açıksa o kullanılır, birden fazlaysa istek reddedilir.
+     */
+    private function hedefAy(Faaliyet $faaliyet, ?int $istenenAyId): DonemAy
+    {
+        $acikAylar = $faaliyet->donem->aylar->filter(fn (DonemAy $ay) => $ay->acik)->values();
+
+        if ($acikAylar->isEmpty()) {
+            throw ValidationException::withMessages([
+                'donem_ay_id' => 'Şu anda açık bir değerlendirme ayı bulunmuyor. Birim yöneticinizle iletişime geçin.',
+            ]);
+        }
+
+        if ($istenenAyId === null) {
+            if ($acikAylar->count() > 1) {
+                $adlar = $acikAylar->pluck('name')->implode(', ');
+
+                throw ValidationException::withMessages([
+                    'donem_ay_id' => "Birden fazla ay açık ({$adlar}); kaydın hangi aya yazılacağını belirtmelisiniz.",
+                ]);
+            }
+
+            return $acikAylar->first();
+        }
+
+        $ay = $acikAylar->firstWhere('id', $istenenAyId);
+
+        if (!$ay) {
+            throw ValidationException::withMessages([
+                'donem_ay_id' => 'Seçilen ay bu faaliyetin dönemine ait değil veya kayıt girişine kapalı.',
+            ]);
+        }
+
+        return $ay;
+    }
+
     private function assertGonderilmemis(FaaliyetKayit $kayit, string $eylem): void
     {
         $gonderim = AyGonderim::where('donem_ay_id', $kayit->donem_ay_id)

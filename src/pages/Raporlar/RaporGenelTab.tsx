@@ -1,4 +1,4 @@
-import { Trophy } from 'lucide-react'
+import { AlertTriangle, Trophy } from 'lucide-react'
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
 } from 'recharts'
@@ -13,8 +13,24 @@ export function RaporGenelTab({ rapor }: { rapor: DonemRaporu }) {
   const trendData = aylik_trend.map(a => ({ name: a.ay.split(' ')[0], kayit: a.kayit_sayisi }))
   const tamamlanmaYuzde = formatPercent(genel.ortalama_tamamlanma)
 
+  const uyeSayisiEksik = genel.uye_sayisi_eksik ?? []
+
   return (
     <div className="space-y-5">
+      {/* Oran tipi kriterler üye sayısına bölerek puan üretir; üye sayısı
+          girilmemiş şubede sonuç sessizce sıfır kalırdı. */}
+      {uyeSayisiEksik.length > 0 && (
+        <div className="px-4 py-3 bg-amber-50 border border-amber-100 rounded-xl text-sm text-amber-800 flex gap-2.5">
+          <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
+          <p>
+            <strong>{uyeSayisiEksik.map(s => s.sube_adi).join(', ')}</strong>{' '}
+            {uyeSayisiEksik.length > 1 ? 'şubelerinin' : 'şubesinin'} üye sayısı girilmemiş. Bu dönemde oran
+            tipi kriterler bulunduğu için {uyeSayisiEksik.length > 1 ? 'bu şubeler' : 'bu şube'} o kriterlerden
+            puan alamıyor. Şubeler ekranından üye sayısını girdiğinizde puanlar yeniden hesaplanır.
+          </p>
+        </div>
+      )}
+
       <div className="grid grid-cols-4 gap-3">
         {[
           { label: 'Kapsamdaki Şube', value: genel.toplam_sube, color: '#2563eb' },

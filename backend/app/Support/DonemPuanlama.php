@@ -37,29 +37,84 @@ class DonemPuanlama
         $this->hazirla();
     }
 
+    /** @var Collection<int, FaaliyetKayit> */
+    public Collection $kayitlar;
+
     private function hazirla(): void
     {
-        $subeQuery = $this->donem->tum_subeler ? Sube::query() : $this->donem->subeler();
-
-        // uye_sayisi oran tipi kriterlerde gerekli.
-        $this->subeler = $subeQuery->where('subeler.status', 'active')
-            ->orderBy('subeler.name')
-            ->get(['subeler.id', 'subeler.name', 'subeler.uye_sayisi']);
-
         $this->faaliyetler = Faaliyet::where('donem_id', $this->donem->id)->degerlendirmeye()->get();
         $this->maxPuanToplam = (int) $this->faaliyetler->sum(fn (Faaliyet $f) => $f->max_puan);
 
         $faaliyetIds = $this->faaliyetler->pluck('id');
 
-        $kayitlar = FaaliyetKayit::whereIn('faaliyet_id', $faaliyetIds)
+        $this->subeler = $this->subeleriTopla($faaliyetIds);
+
+        $this->kayitlar = FaaliyetKayit::whereIn('faaliyet_id', $faaliyetIds)
             ->whereIn('sube_id', $this->subeler->pluck('id'))
             ->get(['id', 'faaliyet_id', 'sube_id', 'donem_ay_id']);
 
-        foreach ($kayitlar as $k) {
+        foreach ($this->kayitlar as $k) {
             $this->adetMatrisi[$k->sube_id][$k->faaliyet_id] = ($this->adetMatrisi[$k->sube_id][$k->faaliyet_id] ?? 0) + 1;
         }
 
         $this->manuelPuanlar = $this->manuelPuanlariTopla($faaliyetIds);
+    }
+
+    /**
+     * Dönemin şubeleri: kapsamdaki aktif şubeler ile döneme kaydı girilmiş
+     * şubelerin birleşimi.
+     *
+     * Yalnızca aktif şubeleri almak, dönem ortasında pasife alınan bir şubeyi
+     * raporun tamamından siliyordu: girdiği kayıtlar duruyor ama ne satırı ne
+     * puanı görünüyor, dönem ortalaması da o şube hiç yokmuş gibi çıkıyordu.
+     *
+     * @return Collection<int, Sube>
+     */
+    private function subeleriTopla($faaliyetIds): Collection
+    {
+        $kapsamQuery = $this->donem->tum_subeler ? Sube::query() : $this->donem->subeler();
+
+        // uye_sayisi oran tipi kriterlerde gerekli.
+        $alanlar = ['subeler.id', 'subeler.name', 'subeler.uye_sayisi'];
+
+        $kapsam = (clone $kapsamQuery)->where('subeler.status', 'active')->get($alanlar);
+
+        $kayitliIds = FaaliyetKayit::whereIn('faaliyet_id', $faaliyetIds)
+            ->distinct()
+            ->pluck('sube_id');
+
+        $eksikIds = $kayitliIds->diff($kapsam->pluck('id'));
+
+        $eksikler = $eksikIds->isEmpty()
+            ? collect()
+            : Sube::whereIn('subeler.id', $eksikIds)->get($alanlar);
+
+        return $kapsam->concat($eksikler)->sortBy('name')->values();
+    }
+
+    /**
+     * Oran tipi kriter varken üye sayısı girilmemiş şubeler.
+     *
+     * Üye sayısı bilinmeyen şubede oransal kriterler sessizce sıfır puan
+     * üretiyordu; rapor bunu artık uyarı olarak gösteriyor.
+     *
+     * @return array<int, array{sube_id:int, sube_adi:string}>
+     */
+    public function uyeSayisiEksikSubeler(): array
+    {
+        $oranVarMi = $this->faaliyetler->contains(
+            fn (Faaliyet $f) => $f->kriter_turu === PuanHesaplayici::ORAN
+        );
+
+        if (!$oranVarMi) {
+            return [];
+        }
+
+        return $this->subeler
+            ->filter(fn (Sube $s) => (int) $s->uye_sayisi <= 0)
+            ->map(fn (Sube $s) => ['sube_id' => $s->id, 'sube_adi' => $s->name])
+            ->values()
+            ->all();
     }
 
     /** Bir şubenin bir faaliyetten aldığı puan. */
@@ -81,6 +136,18 @@ class DonemPuanlama
         }
 
         return $toplam;
+    }
+
+    /** Şubenin bu dönemde girdiği toplam kayıt adedi. */
+    public function subeKayitSayisi(Sube $sube): int
+    {
+        return (int) array_sum($this->adetMatrisi[$sube->id] ?? []);
+    }
+
+    /** Bir faaliyetin bir şubeden aldığı kayıt adedi. */
+    public function adet(Sube $sube, Faaliyet $faaliyet): int
+    {
+        return (int) ($this->adetMatrisi[$sube->id][$faaliyet->id] ?? 0);
     }
 
     /**
