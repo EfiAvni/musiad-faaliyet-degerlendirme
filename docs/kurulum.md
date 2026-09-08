@@ -227,6 +227,22 @@ HSTS_ALT_ALANLAR=false    # dikkat: aşağıya bakın
 
 Web sunucusunda `http → https` kalıcı yönlendirmesi de kurulmalıdır; HSTS ancak kullanıcı bir kez https ile bağlandıktan sonra korur.
 
+### Bağımlılık denetimi
+
+Her değişiklikte CI, bilinen açıkları olan paketleri arar:
+
+```bash
+cd backend && composer audit --locked    # sunucu — açık varsa CI kırmızı
+npm audit --omit=dev --audit-level=high  # arayüz, üretim — açık varsa CI kırmızı
+npm audit --audit-level=high             # arayüz, geliştirme — yalnızca bilgi
+```
+
+Geliştirme araçlarındaki açıklar derlemeyi durdurmaz: o paketler ne sunucuya ne kullanıcının tarayıcısına ulaşır.
+
+> `composer audit` komutunu **`--locked` olmadan** çalıştırmayın. Paketler kurulu değilken hiçbir şey denetlemeden başarıyla çıkar.
+
+`public/vendor/` altındaki dosyalar paket yöneticisinden gelmediği için bu denetimlere girmez; sürümleri elle takip edilmelidir.
+
 ### Projeye dahil edilen kitaplık
 
 Excel okuma kitaplığı (SheetJS) `public/vendor/xlsx.full.min.js` altında projeyle birlikte gelir ve uygulamanın kendi sunucusundan yüklenir. Çalışma anında hiçbir dış CDN'e bağlanılmaz.
