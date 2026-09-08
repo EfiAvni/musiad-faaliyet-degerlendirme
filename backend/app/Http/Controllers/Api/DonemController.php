@@ -6,11 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\Donem;
 use App\Models\DonemAy;
 use App\Models\FaaliyetKayit;
+use App\Notifications\SistemBildirimi;
+use App\Support\BildirimAlicilari;
 use App\Support\BirimKapsami;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -225,6 +228,13 @@ class DonemController extends Controller
         }
 
         $donem->update(['status' => 'active']);
+
+        // Kapsamdaki şubeler kayıt girebileceklerini bilmeli; dönemin açıldığını
+        // duyurmazsak ilk ay sessizce boş geçebilir.
+        Notification::send(
+            BildirimAlicilari::donemKapsamindakiSubeler($donem),
+            SistemBildirimi::donemAcildi($donem),
+        );
 
         return response()->json($donem->fresh()->load('aylar'));
     }

@@ -8,12 +8,15 @@ use App\Models\DonemAy;
 use App\Models\Faaliyet;
 use App\Models\FaaliyetDegerlendirme;
 use App\Models\FaaliyetKayit;
+use App\Notifications\SistemBildirimi;
+use App\Support\BildirimAlicilari;
 use App\Support\BirimKapsami;
 use App\Support\PuanHesaplayici;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -137,7 +140,10 @@ class GonderimController extends Controller
             ]);
         }
 
-        return response()->json($this->taze($gonderim), $gonderim->wasRecentlyCreated ? 201 : 200);
+        $taze = $this->taze($gonderim);
+        Notification::send(BildirimAlicilari::merkez($donem), SistemBildirimi::ayGonderildi($taze));
+
+        return response()->json($taze, $gonderim->wasRecentlyCreated ? 201 : 200);
     }
 
     /** Merkez ayı onaylar; şube artık o ayda değişiklik yapamaz. */
@@ -162,7 +168,10 @@ class GonderimController extends Controller
             'merkez_notu'        => $data['merkez_notu'] ?? null,
         ]);
 
-        return response()->json($this->taze($gonderim));
+        $taze = $this->taze($gonderim);
+        Notification::send(BildirimAlicilari::sube($gonderim->sube_id), SistemBildirimi::onaylandi($taze));
+
+        return response()->json($taze);
     }
 
     /** Merkez düzeltme ister; şube düzeltip tekrar gönderebilir. */
@@ -188,7 +197,10 @@ class GonderimController extends Controller
             'merkez_notu'        => $data['merkez_notu'],
         ]);
 
-        return response()->json($this->taze($gonderim));
+        $taze = $this->taze($gonderim);
+        Notification::send(BildirimAlicilari::sube($gonderim->sube_id), SistemBildirimi::duzeltmeIstendi($taze));
+
+        return response()->json($taze);
     }
 
     /**
