@@ -25,12 +25,16 @@ export function SubeYoneticisiDashboard({ onNavigate, user }: { onNavigate: (p: 
         const aktifler = donemlerData.filter(d => d.status === 'active')
         setActiveDonemler(aktifler)
         if (aktifler.length > 0) {
-          const [faaliyetLists, kayitData] = await Promise.all([
+          // Kayıtlar aktif dönemlerle sınırlanır. Filtresiz çağrı şubenin
+          // bütün geçmişini indiriyordu; pano yalnızca aktif dönemlerin
+          // kapsanma oranını gösterdiği için gerisi boşuna taşınıyordu ve
+          // yıllar geçtikçe büyüyordu.
+          const [faaliyetLists, kayitListeleri] = await Promise.all([
             Promise.all(aktifler.map(d => faaliyetlerApi.list(d.id))),
-            faaliyetKayitlariApi.list(),
+            Promise.all(aktifler.map(d => faaliyetKayitlariApi.list({ donem_id: d.id }))),
           ])
           setFaaliyetler(faaliyetLists.flat())
-          setKayitlar(kayitData)
+          setKayitlar(kayitListeleri.flat())
         }
       } catch { /* dashboard verisi yüklenemedi, sessizce geç */ }
       finally { setLoading(false) }
