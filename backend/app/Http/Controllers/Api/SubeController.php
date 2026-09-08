@@ -94,7 +94,7 @@ class SubeController extends Controller
         }
 
         $donemId = $donem->id;
-        $faaliyetler = Faaliyet::where('donem_id', $donemId)->get();
+        $faaliyetler = Faaliyet::where('donem_id', $donemId)->degerlendirmeye()->get();
 
         $kayitSayilari = FaaliyetKayit::where('sube_id', $sube->id)
             ->whereIn('faaliyet_id', $faaliyetler->pluck('id'))
